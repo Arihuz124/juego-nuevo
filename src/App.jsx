@@ -25,10 +25,20 @@ export default function App() {
   const canvasRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const returnToMenuRef = useRef(null);
+  const mobileControlsRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 880);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 880);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     const assets = loadGameAssets();
     const audio = createAudioManager();
@@ -36,6 +46,52 @@ export default function App() {
 
     returnToMenuRef.current = () => {
       returnToMenu(game, setIsPlaying);
+    };
+
+    mobileControlsRef.current = {
+      setKey: (key, isPressed) => {
+        audio.startMusic();
+        if (game.screen !== 'playing' || game.isMapOpen || game.dialogue.active) {
+          game.keys[key] = false;
+          return;
+        }
+        game.keys[key] = isPressed;
+      },
+      attack: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing') return;
+        if (game.dialogue.active) {
+          advanceDialogue(game);
+          return;
+        }
+        if (!game.isMapOpen && !game.isAttacking) {
+          game.isAttacking = true;
+          game.attackHasHit = false;
+          game.attackFrame = 0;
+          game.attackTimer = 0;
+        }
+      },
+      interact: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing') return;
+        if (game.dialogue.active) {
+          advanceDialogue(game);
+          return;
+        }
+        if (!game.isMapOpen) {
+          handleInteractionKey(game);
+        }
+      },
+      toggleMap: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing' || game.dialogue.active) return;
+        game.isMapOpen = !game.isMapOpen;
+        game.hoveredMapRoom = null;
+      },
+      toggleMute: () => {
+        audio.startMusic();
+        audio.toggleMute();
+      },
     };
 
     const getCanvasCoords = (e) => {
@@ -219,21 +275,72 @@ export default function App() {
     };
   }, []);
 
+  const bindHoldKey = (key) => ({
+    onPointerDown: (e) => {
+      e.preventDefault();
+      mobileControlsRef.current?.setKey(key, true);
+    },
+    onPointerUp: (e) => {
+      e.preventDefault();
+      mobileControlsRef.current?.setKey(key, false);
+    },
+    onPointerLeave: () => {
+      mobileControlsRef.current?.setKey(key, false);
+    },
+    onPointerCancel: () => {
+      mobileControlsRef.current?.setKey(key, false);
+    },
+  });
+
+  const dpadBtnStyle = {
+    width: '52px',
+    height: '52px',
+    backgroundColor: '#25252d',
+    color: '#ffffff',
+    border: '3px solid #ffffff',
+    fontFamily: 'monospace',
+    fontSize: '20px',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    userSelect: 'none',
+    touchAction: 'none',
+    padding: 0,
+  };
+
+  const actionBtnStyle = {
+    padding: '12px 14px',
+    backgroundColor: '#25252d',
+    color: '#ffffff',
+    border: '3px solid #ffffff',
+    fontFamily: 'monospace',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    userSelect: 'none',
+    touchAction: 'none',
+  };
+
   return (
     <div
       style={{
         display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
         justifyContent: 'center',
-        alignItems: 'flex-start',
-        gap: '16px',
+        alignItems: isMobile ? 'center' : 'flex-start',
+        gap: isMobile ? '12px' : '16px',
+        touchAction: 'manipulation',
+        userSelect: 'none',
       }}
     >
-      {/* Columna izquierda: botón de regreso pegado a la esquina superior derecha */}
+      {/* Columna izquierda (en PC) / Barra superior (en celular) */}
       <div
         style={{
-          width: '180px',
+          width: isMobile ? 'min(92vw, 500px)' : '180px',
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: isMobile ? 'space-between' : 'flex-end',
+          alignItems: 'center',
+          minHeight: isMobile ? '38px' : 'auto',
         }}
       >
         {isPlaying && (
@@ -241,9 +348,7 @@ export default function App() {
             type="button"
             onClick={(e) => {
               e.currentTarget.blur();
-              if (returnToMenuRef.current) {
-                returnToMenuRef.current();
-              }
+              returnToMenuRef.current?.();
             }}
             title="Volver al menú"
             style={{
@@ -265,6 +370,26 @@ export default function App() {
             ←
           </button>
         )}
+
+        {/* Botones rápidos de Mapa y Audio en celular */}
+        {isMobile && isPlaying && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => mobileControlsRef.current?.toggleMap()}
+              style={{ ...actionBtnStyle, padding: '6px 12px', fontSize: '13px' }}
+            >
+              MAPA
+            </button>
+            <button
+              type="button"
+              onClick={() => mobileControlsRef.current?.toggleMute()}
+              style={{ ...actionBtnStyle, padding: '6px 12px', fontSize: '13px' }}
+            >
+              ♪
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Centro: pantalla principal del juego */}
@@ -273,40 +398,110 @@ export default function App() {
         width={CANVAS_SIZE}
         height={CANVAS_SIZE}
         style={{
+          width: isMobile ? 'min(92vw, 500px)' : `${CANVAS_SIZE}px`,
+          height: isMobile ? 'min(92vw, 500px)' : `${CANVAS_SIZE}px`,
           border: '4px solid #ffffff',
           display: 'block',
           imageRendering: 'pixelated',
           cursor: 'pointer',
+          touchAction: 'none',
         }}
       />
 
-      {/* Columna derecha: leyenda de controles */}
-      <div
-        style={{
-          width: '180px',
-          backgroundColor: '#141418',
-          border: '3px solid #ffffff',
-          padding: '12px 14px',
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          fontSize: '13px',
-          lineHeight: '1.8',
-          textAlign: 'left',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#fdcb6e' }}>
-          CONTROLES
+      {/* Controles táctiles inferiores (solo visible en celular al jugar) */}
+      {isMobile && isPlaying && (
+        <div
+          style={{
+            width: 'min(92vw, 500px)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '6px',
+          }}
+        >
+          {/* Cruceta direccional (D-Pad) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '52px 52px 52px',
+              gridTemplateRows: '52px 52px 52px',
+              gap: '4px',
+            }}
+          >
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('w')}>
+              ▲
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('a')}>
+              ◀
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('d')}>
+              ▶
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('s')}>
+              ▼
+            </button>
+            <div />
+          </div>
+
+          {/* Botones de acción (Interactuar y Atacar) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                mobileControlsRef.current?.interact();
+              }}
+              style={{ ...actionBtnStyle, backgroundColor: '#0984e3', minWidth: '110px' }}
+            >
+              E (HABLAR)
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                mobileControlsRef.current?.attack();
+              }}
+              style={{ ...actionBtnStyle, backgroundColor: '#d63031', minWidth: '110px' }}
+            >
+              ATACAR
+            </button>
+          </div>
         </div>
-        <div>W - Arriba</div>
-        <div>S - Abajo</div>
-        <div>A - Izquierda</div>
-        <div>D - Derecha</div>
-        <div>E - Interactuar</div>
-        <div>Clic izq - Atacar</div>
-        <div>Tab - Mapa</div>
-        <div>M - Mutear</div>
-      </div>
+      )}
+
+      {/* Columna derecha: leyenda de controles (solo visible en PC) */}
+      {!isMobile && (
+        <div
+          style={{
+            width: '180px',
+            backgroundColor: '#141418',
+            border: '3px solid #ffffff',
+            padding: '12px 14px',
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '13px',
+            lineHeight: '1.8',
+            textAlign: 'left',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#fdcb6e' }}>
+            CONTROLES
+          </div>
+          <div>W - Arriba</div>
+          <div>S - Abajo</div>
+          <div>A - Izquierda</div>
+          <div>D - Derecha</div>
+          <div>E - Interactuar</div>
+          <div>Clic izq - Atacar</div>
+          <div>Tab - Mapa</div>
+          <div>M - Mutear</div>
+        </div>
+      )}
     </div>
   );
 }
