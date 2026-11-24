@@ -321,6 +321,28 @@ export default function App() {
     touchAction: 'none',
   };
 
+  //BLOQUEO DE CLICCK derecho
+  useEffect(() => {
+    const bloquearClicDerecho = (e) => {
+      if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const bloquearMenuContextual = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    document.addEventListener('mousedown', bloquearClicDerecho, true);
+    document.addEventListener('contextmenu', bloquearMenuContextual, true);
+
+    return () => {
+      document.removeEventListener('mousedown', bloquearClicDerecho, true);
+      //document.removeEventListener('contextmenu', bloquearMenuContextual, true);
+    };
+  }, []);
   return (
     <div
       style={{
