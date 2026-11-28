@@ -1,17 +1,15 @@
 import {
-  CANVAS_SIZE,
   DRAW_SIZE,
   DRAW_H,
-  MAX_PLAYER_HP,
+  MAX_PLAYER_HEARTS,
   MAX_ENEMY_HP,
   COLS,
   ROWS,
   WALK_ANIMS,
   ATTACK_ANIMS,
   ROOMS,
-  MENU_BUTTONS,
-  MAP_ROOMS,
-  MAP_CONNECTORS,
+  getMenuButtons,
+  getMapLayout,
 } from './constants';
 import { readSavedGame } from './state';
 
@@ -58,9 +56,10 @@ function drawPixelHeart(ctx, x, y, filled) {
 
 function drawStartMenu(ctx, game) {
   ctx.fillStyle = '#141418';
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.fillRect(0, 0, game.width, game.height);
 
   const hasSave = Boolean(readSavedGame());
+  const menuButtons = getMenuButtons(game.width, game.height);
 
   const drawButton = (btn, index, enabled) => {
     const isActive =
@@ -90,20 +89,25 @@ function drawStartMenu(ctx, game) {
     ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
   };
 
-  drawButton(MENU_BUTTONS.newGame, 0, true);
-  drawButton(MENU_BUTTONS.loadGame, 1, hasSave);
+  drawButton(menuButtons.newGame, 0, true);
+  drawButton(menuButtons.loadGame, 1, hasSave);
 }
 
 function drawMapOverlay(ctx, game) {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.fillRect(0, 0, game.width, game.height);
+
+  const { rooms: mapRooms, connectors: mapConnectors } = getMapLayout(
+    game.width,
+    game.height
+  );
 
   ctx.fillStyle = '#000000';
-  MAP_CONNECTORS.forEach((conn) => {
+  mapConnectors.forEach((conn) => {
     ctx.fillRect(conn.x, conn.y, conn.w, conn.h);
   });
 
-  for (const [roomKey, rect] of Object.entries(MAP_ROOMS)) {
+  for (const [roomKey, rect] of Object.entries(mapRooms)) {
     const isCurrent = game.room === roomKey;
     const isHovered = game.hoveredMapRoom === roomKey;
 
@@ -122,9 +126,9 @@ function drawMapOverlay(ctx, game) {
 }
 
 function drawDialogueBox(ctx, game, assets) {
-  const boxX = 16;
-  const boxY = CANVAS_SIZE - 144;
-  const boxW = CANVAS_SIZE - 32;
+  const boxW = Math.min(760, game.width - 32);
+  const boxX = Math.round((game.width - boxW) / 2);
+  const boxY = game.height - 144;
   const boxH = 128;
 
   ctx.fillStyle = '#000000';
@@ -178,15 +182,88 @@ function drawDialogueBox(ctx, game, assets) {
   ctx.fillText(line.trim(), textX, lineY);
 }
 
+function drawCooldownHud(ctx, game, assets) {
+  // Espacios reservados en la esquina inferior izquierda para los íconos de cooldown (ataque y magia)
+  const slotSize = 44;
+  const gap = 10;
+  const startX = 16;
+  const startY = game.height - slotSize - 16;
+
+  const slots = [
+    { icon: assets.cooldownIcons?.attack, label: 'ATK' },
+    { icon: assets.cooldownIcons?.magic, label: 'MAG' },
+  ];
+
+  slots.forEach((slot, idx) => {
+    const sx = startX + idx * (slotSize + gap);
+    ctx.fillStyle = 'rgba(20, 20, 24, 0.72)';
+    ctx.fillRect(sx, startY, slotSize, slotSize);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx, startY, slotSize, slotSize);
+
+    if (slot.icon) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(slot.icon, sx + 4, startY + 4, slotSize - 8, slotSize - 8);
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(slot.label, sx + slotSize / 2, startY + slotSize / 2);
+    }
+  });
+}
+
+function drawControlsOverlay(ctx, game) {
+  if (!game.showControlsGuide) return;
+
+  const boxW = 220;
+  const boxH = 224;
+  const boxX = game.width - boxW - 16;
+  const boxY = 54;
+
+  ctx.fillStyle = 'rgba(20, 20, 24, 0.88)';
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+  ctx.fillStyle = '#fdcb6e';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('CONTROLES (H para cerrar)', boxX + 12, boxY + 12);
+
+  const lines = [
+    'W / A / S / D - Moverse',
+    'E - Interactuar',
+    'Clic izq - Atacar',
+    'Tab - Mapa',
+    'M - Mutear audio',
+    'H - Mostrar/Ocultar guía',
+  ];
+
+  ctx.fillStyle = '#ffffff';
+  lines.forEach((txt, i) => {
+    ctx.fillText(txt, boxX + 12, boxY + 40 + i * 26);
+  });
+}
+
 export function drawGame(ctx, game, assets) {
   if (game.screen === 'menu') {
     drawStartMenu(ctx, game);
     return;
   }
 
-  // aquí para futuros implementos de dibujar imágenes de fondo de escenarios en lugar de color sólido
-  ctx.fillStyle = ROOMS[game.room].color;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  const bgImg = assets.backgrounds?.[game.room];
+  if (bgImg) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bgImg, 0, 0, game.width, game.height);
+  } else {
+    ctx.fillStyle = ROOMS[game.room].color;
+    ctx.fillRect(0, 0, game.width, game.height);
+  }
 
   if (game.room === 'top') {
     const enemy = game.northEnemy;
@@ -274,30 +351,51 @@ export function drawGame(ctx, game, assets) {
       );
     } else {
       ctx.fillStyle = '#000000';
-      ctx.fillRect(game.x, game.y, DRAW_SIZE, DRAW_SIZE);
+      ctx.fillRect(game.x, game.y, DRAW_SIZE, DRAW_H);
     }
   }
 
-  const heartWidth = 24;
-  const heartGap = 8;
+  // Barra de 7 corazones personalizados en la esquina superior derecha
+  const heartSize = 26;
+  const heartGap = 6;
   const startHeartsX =
-    CANVAS_SIZE - 14 - (MAX_PLAYER_HP * heartWidth + (MAX_PLAYER_HP - 1) * heartGap);
+    game.width - 16 - (MAX_PLAYER_HEARTS * heartSize + (MAX_PLAYER_HEARTS - 1) * heartGap);
 
-  for (let i = 0; i < MAX_PLAYER_HP; i++) {
-    const hx = startHeartsX + i * (heartWidth + heartGap);
-    const hy = 14;
-    drawPixelHeart(ctx, hx, hy, i < game.playerHp);
+  ctx.imageSmoothingEnabled = false;
+
+  for (let i = 0; i < MAX_PLAYER_HEARTS; i++) {
+    const hx = startHeartsX + i * (heartSize + heartGap);
+    const hy = 16;
+
+    const fullThreshold = (i + 1) * 2;
+    const halfThreshold = i * 2 + 1;
+
+    let heartImg = assets.heartEmpty;
+    if (game.playerHp >= fullThreshold) {
+      heartImg = assets.heartFull;
+    } else if (game.playerHp === halfThreshold) {
+      heartImg = assets.heartHalf;
+    }
+
+    if (heartImg) {
+      ctx.drawImage(heartImg, hx, hy, heartSize, heartSize);
+    } else {
+      drawPixelHeart(ctx, hx, hy, game.playerHp >= halfThreshold);
+    }
   }
 
   if (game.saveNoticeTimer > 0) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(14, 14, 152, 26);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+    ctx.fillRect(64, 16, 152, 34);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Partida guardada', 24, 27);
+    ctx.fillText('Partida guardada', 74, 33);
   }
+
+  drawCooldownHud(ctx, game, assets);
+  drawControlsOverlay(ctx, game);
 
   if (game.dialogue.active) {
     drawDialogueBox(ctx, game, assets);

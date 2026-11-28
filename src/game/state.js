@@ -1,5 +1,6 @@
 import {
-  CANVAS_SIZE,
+  DEFAULT_WIDTH,
+  DEFAULT_HEIGHT,
   DRAW_SIZE,
   DRAW_H,
   MAX_PLAYER_HP,
@@ -7,8 +8,12 @@ import {
   SAVE_KEY,
 } from './constants';
 
-export const CENTER_SPAWN_X = CANVAS_SIZE / 2 - DRAW_SIZE / 2;
-export const CENTER_SPAWN_Y = CANVAS_SIZE / 2 - DRAW_H / 2;
+export function getCenterSpawn(width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT) {
+  return {
+    x: Math.round(width / 2 - DRAW_SIZE / 2),
+    y: Math.round(height / 2 - DRAW_H / 2),
+  };
+}
 
 export function readSavedGame() {
   try {
@@ -31,22 +36,28 @@ export function writeSavedGame(data) {
 }
 
 export function createInitialGameState() {
+  const spawn = getCenterSpawn(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+
   return {
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    showControlsGuide: false,
+
     screen: 'menu', // 'menu' | 'playing'
     menuHovered: null,
     menuSelected: 0,
     saveNoticeTimer: 0,
 
     room: 'center',
-    x: CENTER_SPAWN_X,
-    y: CENTER_SPAWN_Y,
+    x: spawn.x,
+    y: spawn.y,
     playerHp: MAX_PLAYER_HP,
     playerHitFlash: 0,
 
     checkpoint: {
       room: 'center',
-      x: CENTER_SPAWN_X,
-      y: CENTER_SPAWN_Y,
+      x: spawn.x,
+      y: spawn.y,
       northEnemyHp: MAX_ENEMY_HP,
     },
 
@@ -64,7 +75,7 @@ export function createInitialGameState() {
     attackTimer: 0,
 
     northEnemy: {
-      x: CANVAS_SIZE / 2 - DRAW_SIZE / 2,
+      x: Math.round(DEFAULT_WIDTH / 2 - DRAW_SIZE / 2),
       y: 55,
       size: DRAW_SIZE,
       hp: MAX_ENEMY_HP,
@@ -74,15 +85,15 @@ export function createInitialGameState() {
     bullets: [],
 
     eastChest: {
-      x: 320,
-      y: CANVAS_SIZE / 2 - 24,
+      x: Math.round(DEFAULT_WIDTH * 0.68),
+      y: Math.round(DEFAULT_HEIGHT / 2 - 24),
       size: 48,
       isOpen: false,
     },
 
     westNpc: {
-      x: 110,
-      y: CANVAS_SIZE / 2 - DRAW_H / 2,
+      x: Math.round(DEFAULT_WIDTH * 0.22),
+      y: Math.round(DEFAULT_HEIGHT / 2 - DRAW_H / 2),
       w: DRAW_SIZE,
       h: DRAW_H,
       sprite: [4, 0],
@@ -96,6 +107,7 @@ export function createInitialGameState() {
       timer: 0,
     },
 
+    // aquí para futuros implementos de cooldown de ataque y magia (attackCooldown: 0, magicCooldown: 0)
     // aquí para futuros implementos de estado de bloques empujables para puzzles
     // aquí para futuros implementos de estado de interfaz pequeña para ver detalles de cosas
   };
@@ -114,9 +126,10 @@ export function saveCheckpointAtSouth(game) {
 }
 
 export function startNewGame(game, setIsPlaying) {
+  const spawn = getCenterSpawn(game.width, game.height);
   game.room = 'center';
-  game.x = CENTER_SPAWN_X;
-  game.y = CENTER_SPAWN_Y;
+  game.x = spawn.x;
+  game.y = spawn.y;
   game.playerHp = MAX_PLAYER_HP;
   game.playerHitFlash = 0;
   game.dirKey = '0,1';
@@ -135,8 +148,8 @@ export function startNewGame(game, setIsPlaying) {
   game.eastChest.isOpen = false;
   game.checkpoint = {
     room: 'center',
-    x: CENTER_SPAWN_X,
-    y: CENTER_SPAWN_Y,
+    x: spawn.x,
+    y: spawn.y,
     northEnemyHp: MAX_ENEMY_HP,
   };
   game.screen = 'playing';
@@ -147,9 +160,10 @@ export function loadSavedGame(game, setIsPlaying) {
   const saved = readSavedGame();
   if (!saved) return;
 
+  const spawn = getCenterSpawn(game.width, game.height);
   game.room = saved.room;
-  game.x = saved.x ?? CENTER_SPAWN_X;
-  game.y = saved.y ?? CENTER_SPAWN_Y;
+  game.x = Math.min(saved.x ?? spawn.x, Math.max(0, game.width - DRAW_SIZE));
+  game.y = Math.min(saved.y ?? spawn.y, Math.max(0, game.height - DRAW_H));
   game.playerHp = MAX_PLAYER_HP;
   game.playerHitFlash = 0;
   game.dirKey = '0,1';
@@ -174,8 +188,8 @@ export function loadSavedGame(game, setIsPlaying) {
 export function respawnAtLastCheckpoint(game) {
   const cp = readSavedGame() || game.checkpoint;
   game.room = cp.room;
-  game.x = cp.x;
-  game.y = cp.y;
+  game.x = Math.min(cp.x, Math.max(0, game.width - DRAW_SIZE));
+  game.y = Math.min(cp.y, Math.max(0, game.height - DRAW_H));
   game.playerHp = MAX_PLAYER_HP;
   game.playerHitFlash = 0;
   game.dirKey = '0,1';
@@ -195,9 +209,10 @@ export function respawnAtLastCheckpoint(game) {
 }
 
 export function teleportToRoom(game, targetRoom) {
+  const spawn = getCenterSpawn(game.width, game.height);
   game.room = targetRoom;
-  game.x = CENTER_SPAWN_X;
-  game.y = CENTER_SPAWN_Y;
+  game.x = spawn.x;
+  game.y = spawn.y;
   game.bullets = [];
   game.isAttacking = false;
   game.attackFrame = 0;
@@ -207,6 +222,20 @@ export function teleportToRoom(game, targetRoom) {
   if (targetRoom === 'bottom') {
     saveCheckpointAtSouth(game);
   }
+}
+
+export function resizeGameScreen(game, newWidth, newHeight) {
+  game.width = newWidth;
+  game.height = newHeight;
+
+  game.x = Math.max(0, Math.min(game.x, newWidth - DRAW_SIZE));
+  game.y = Math.max(0, Math.min(game.y, newHeight - DRAW_H));
+
+  game.northEnemy.x = Math.round(newWidth / 2 - DRAW_SIZE / 2);
+  game.eastChest.x = Math.round(newWidth * 0.68);
+  game.eastChest.y = Math.round(newHeight / 2 - 24);
+  game.westNpc.x = Math.round(newWidth * 0.22);
+  game.westNpc.y = Math.round(newHeight / 2 - DRAW_H / 2);
 }
 
 export function returnToMenu(game, setIsPlaying) {

@@ -1,4 +1,4 @@
-import { CANVAS_SIZE, DRAW_SIZE, DRAW_H } from './constants';
+import { DRAW_SIZE, DRAW_H } from './constants';
 import { rectsOverlap, getPlayerBox } from './physics';
 import { respawnAtLastCheckpoint } from './state';
 
@@ -50,9 +50,9 @@ export function updateCombat(game) {
       }
     } else if (
       b.x > -b.size &&
-      b.x < CANVAS_SIZE &&
+      b.x < game.width &&
       b.y > -b.size &&
-      b.y < CANVAS_SIZE
+      b.y < game.height
     ) {
       remainingBullets.push(b);
     }

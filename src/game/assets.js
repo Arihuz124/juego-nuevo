@@ -1,4 +1,4 @@
-import { COLS, ROWS } from './constants';
+import { COLS, ROWS, ROOMS } from './constants';
 
 function removeExteriorBlack(img) {
   const offCanvas = document.createElement('canvas');
@@ -68,7 +68,14 @@ export function loadGameAssets() {
   const assets = {
     cleanSheet: null,
     mapImg: null,
-    // aquí para futuros implementos de fondos de escenarios (backgrounds: {})
+    heartFull: null,
+    heartHalf: null,
+    heartEmpty: null,
+    backgrounds: {},
+    cooldownIcons: {
+      attack: null, // aquí para futura imagen de cooldown de ataque (ej. './assets/ui/cd_ataque.png')
+      magic: null,  // aquí para futura imagen de cooldown de magia (ej. './assets/ui/cd_magia.png')
+    },
     // aquí para futuros implementos de sprites de NPCs animados (npcs: {})
     // aquí para futuros implementos de sprites de jefes y sus ataques (bosses: {})
     // aquí para futuros implementos de sprites de objetos interactuables y bloques (objects: {})
@@ -79,11 +86,37 @@ export function loadGameAssets() {
   rawImg.onload = () => {
     assets.cleanSheet = removeExteriorBlack(rawImg);
   };
+
   const mapImg = new Image();
-  mapImg.src = './assets/ui/mapa.png'; // cambia 'ui' por 'backgrounds' si la pusiste ahí
+  mapImg.src = './assets/ui/mapa.png';
   mapImg.onload = () => {
     assets.mapImg = mapImg;
   };
+
+  const loadUiImage = (src, onLoad) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => onLoad(img);
+  };
+
+  loadUiImage('./assets/ui/corazon.png', (img) => {
+    assets.heartFull = img;
+  });
+  loadUiImage('./assets/ui/corazonmedio.png', (img) => {
+    assets.heartHalf = img;
+  });
+  loadUiImage('./assets/ui/corazonvacio.png', (img) => {
+    assets.heartEmpty = img;
+  });
+
+  // Carga automática de paisajes para cada sala definida en ROOMS
+  for (const [roomKey, roomData] of Object.entries(ROOMS)) {
+    if (roomData.bgSrc) {
+      loadUiImage(roomData.bgSrc, (img) => {
+        assets.backgrounds[roomKey] = img;
+      });
+    }
+  }
 
   return assets;
 }

@@ -1,5 +1,4 @@
 import {
-  CANVAS_SIZE,
   DRAW_SIZE,
   DRAW_H,
   SPEED,
@@ -94,8 +93,8 @@ export function updatePlayer(game) {
     game.animTimer = 0;
   }
 
-  const maxPosX = CANVAS_SIZE - DRAW_SIZE;
-  const maxPosY = CANVAS_SIZE - DRAW_H;
+  const maxPosX = game.width - DRAW_SIZE;
+  const maxPosY = game.height - DRAW_H;
   const offset = 6;
 
   if (game.room === 'center') {

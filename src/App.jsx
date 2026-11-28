@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CANVAS_SIZE, MENU_BUTTONS, MAP_ROOMS } from './game/constants';
+import { getMenuButtons, getMapLayout } from './game/constants';
 import { loadGameAssets } from './game/assets';
 import { createAudioManager } from './game/audio';
 import {
@@ -9,6 +9,7 @@ import {
   loadSavedGame,
   teleportToRoom,
   returnToMenu,
+  resizeGameScreen,
 } from './game/state';
 import { pointInRect } from './game/physics';
 import { updatePlayer } from './game/player';
@@ -23,13 +24,35 @@ import { drawGame } from './game/renderer';
 
 export default function App() {
   const canvasRef = useRef(null);
+  const gameRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const returnToMenuRef = useRef(null);
   const mobileControlsRef = useRef(null);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 880);
+
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  const [isMobile, setIsMobile] = useState(
+    () => window.innerWidth <= 880 || 'ontouchstart' in window
+  );
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 880);
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setViewport({ width: w, height: h });
+      setIsMobile(w <= 880 || 'ontouchstart' in window);
+
+      if (gameRef.current) {
+        resizeGameScreen(gameRef.current, w, h);
+      }
+      if (canvasRef.current) {
+        canvasRef.current.width = w;
+        canvasRef.current.height = h;
+      }
+    };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -43,6 +66,10 @@ export default function App() {
     const assets = loadGameAssets();
     const audio = createAudioManager();
     const game = createInitialGameState();
+    resizeGameScreen(game, window.innerWidth, window.innerHeight);
+    canvas.width = game.width;
+    canvas.height = game.height;
+    gameRef.current = game;
 
     returnToMenuRef.current = () => {
       returnToMenu(game, setIsPlaying);
@@ -92,12 +119,16 @@ export default function App() {
         audio.startMusic();
         audio.toggleMute();
       },
+      toggleGuide: () => {
+        if (game.screen !== 'playing') return;
+        game.showControlsGuide = !game.showControlsGuide;
+      },
     };
 
     const getCanvasCoords = (e) => {
       const rect = canvas.getBoundingClientRect();
-      const scaleX = CANVAS_SIZE / rect.width;
-      const scaleY = CANVAS_SIZE / rect.height;
+      const scaleX = game.width / rect.width;
+      const scaleY = game.height / rect.height;
       return {
         mx: (e.clientX - rect.left) * scaleX,
         my: (e.clientY - rect.top) * scaleY,
@@ -109,6 +140,11 @@ export default function App() {
 
       if (e.key.toLowerCase() === 'm') {
         audio.toggleMute();
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'h' && game.screen === 'playing') {
+        game.showControlsGuide = !game.showControlsGuide;
         return;
       }
 
@@ -169,10 +205,11 @@ export default function App() {
       const { mx, my } = getCanvasCoords(e);
 
       if (game.screen === 'menu') {
-        if (pointInRect(mx, my, MENU_BUTTONS.newGame)) {
+        const menuButtons = getMenuButtons(game.width, game.height);
+        if (pointInRect(mx, my, menuButtons.newGame)) {
           game.menuHovered = 'newGame';
           game.menuSelected = 0;
-        } else if (pointInRect(mx, my, MENU_BUTTONS.loadGame)) {
+        } else if (pointInRect(mx, my, menuButtons.loadGame)) {
           game.menuHovered = 'loadGame';
           if (readSavedGame()) game.menuSelected = 1;
         } else {
@@ -186,8 +223,9 @@ export default function App() {
         return;
       }
 
+      const { rooms: mapRooms } = getMapLayout(game.width, game.height);
       let found = null;
-      for (const [roomKey, rect] of Object.entries(MAP_ROOMS)) {
+      for (const [roomKey, rect] of Object.entries(mapRooms)) {
         if (pointInRect(mx, my, rect)) {
           found = roomKey;
           break;
@@ -201,11 +239,12 @@ export default function App() {
       const { mx, my } = getCanvasCoords(e);
 
       if (game.screen === 'menu') {
-        if (pointInRect(mx, my, MENU_BUTTONS.newGame)) {
+        const menuButtons = getMenuButtons(game.width, game.height);
+        if (pointInRect(mx, my, menuButtons.newGame)) {
           startNewGame(game, setIsPlaying);
           return;
         }
-        if (pointInRect(mx, my, MENU_BUTTONS.loadGame) && readSavedGame()) {
+        if (pointInRect(mx, my, menuButtons.loadGame) && readSavedGame()) {
           loadSavedGame(game, setIsPlaying);
           return;
         }
@@ -218,7 +257,8 @@ export default function App() {
       }
 
       if (game.isMapOpen) {
-        for (const [roomKey, rect] of Object.entries(MAP_ROOMS)) {
+        const { rooms: mapRooms } = getMapLayout(game.width, game.height);
+        for (const [roomKey, rect] of Object.entries(mapRooms)) {
           if (pointInRect(mx, my, rect)) {
             teleportToRoom(game, roomKey);
             return;
@@ -293,31 +333,40 @@ export default function App() {
   });
 
   const dpadBtnStyle = {
-    width: '52px',
-    height: '52px',
-    backgroundColor: '#25252d',
+    width: '50px',
+    height: '50px',
+    backgroundColor: 'rgba(37, 37, 45, 0.78)',
     color: '#ffffff',
-    border: '3px solid #ffffff',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
     fontFamily: 'monospace',
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: 'bold',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
     touchAction: 'none',
     padding: 0,
   };
 
-  const actionBtnStyle = {
-    padding: '12px 14px',
-    backgroundColor: '#25252d',
+  const hudBtnStyle = {
+    height: '36px',
+    padding: '0 10px',
+    backgroundColor: 'rgba(20, 20, 24, 0.78)',
     color: '#ffffff',
-    border: '3px solid #ffffff',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
     fontFamily: 'monospace',
     fontSize: '14px',
     fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
     touchAction: 'none',
   };
 
@@ -343,86 +392,31 @@ export default function App() {
       //document.removeEventListener('contextmenu', bloquearMenuContextual, true);
     };
   }, []);
+
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        justifyContent: 'center',
-        alignItems: isMobile ? 'center' : 'flex-start',
-        gap: isMobile ? '12px' : '16px',
-        touchAction: 'manipulation',
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        touchAction: 'none',
         userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
       }}
     >
-      {/* Columna izquierda (en PC) / Barra superior (en celular) */}
-      <div
-        style={{
-          width: isMobile ? 'min(92vw, 500px)' : '180px',
-          display: 'flex',
-          justifyContent: isMobile ? 'space-between' : 'flex-end',
-          alignItems: 'center',
-          minHeight: isMobile ? '38px' : 'auto',
-        }}
-      >
-        {isPlaying && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              returnToMenuRef.current?.();
-            }}
-            title="Volver al menú"
-            style={{
-              width: '38px',
-              height: '38px',
-              backgroundColor: '#1e1e24',
-              color: '#ffffff',
-              border: '3px solid #ffffff',
-              fontFamily: 'monospace',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-          >
-            ←
-          </button>
-        )}
-
-        {/* Botones rápidos de Mapa y Audio en celular */}
-        {isMobile && isPlaying && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => mobileControlsRef.current?.toggleMap()}
-              style={{ ...actionBtnStyle, padding: '6px 12px', fontSize: '13px' }}
-            >
-              MAPA
-            </button>
-            <button
-              type="button"
-              onClick={() => mobileControlsRef.current?.toggleMute()}
-              style={{ ...actionBtnStyle, padding: '6px 12px', fontSize: '13px' }}
-            >
-              ♪
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Centro: pantalla principal del juego */}
+      {/* Pantalla completa del juego */}
       <canvas
         ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
+        width={viewport.width}
+        height={viewport.height}
         style={{
-          width: isMobile ? 'min(92vw, 500px)' : `${CANVAS_SIZE}px`,
-          height: isMobile ? 'min(92vw, 500px)' : `${CANVAS_SIZE}px`,
-          border: '4px solid #ffffff',
+          width: '100%',
+          height: '100%',
           display: 'block',
           imageRendering: 'pixelated',
           cursor: 'pointer',
@@ -430,24 +424,76 @@ export default function App() {
         }}
       />
 
-      {/* Controles táctiles inferiores (solo visible en celular al jugar) */}
-      {isMobile && isPlaying && (
+      {/* Botones flotantes superiores izquierdos encima del juego */}
+      {isPlaying && (
         <div
           style={{
-            width: 'min(92vw, 500px)',
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: '6px',
+            gap: '8px',
+            zIndex: 10,
           }}
         >
-          {/* Cruceta direccional (D-Pad) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              returnToMenuRef.current?.();
+            }}
+            title="Volver al menú"
+            style={{ ...hudBtnStyle, width: '36px', padding: 0, fontSize: '18px' }}
+          >
+            ←
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              mobileControlsRef.current?.toggleGuide();
+            }}
+            title="Guía de controles (H)"
+            style={{ ...hudBtnStyle, width: '36px', padding: 0, fontSize: '16px' }}
+          >
+            ?
+          </button>
+
+          {isMobile && (
+            <>
+              <button
+                type="button"
+                onClick={() => mobileControlsRef.current?.toggleMap()}
+                style={hudBtnStyle}
+              >
+                MAPA
+              </button>
+              <button
+                type="button"
+                onClick={() => mobileControlsRef.current?.toggleMute()}
+                style={{ ...hudBtnStyle, width: '36px', padding: 0 }}
+              >
+                ♪
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Controles táctiles flotantes en celular */}
+      {isMobile && isPlaying && (
+        <>
           <div
             style={{
+              position: 'absolute',
+              bottom: '74px',
+              left: '16px',
               display: 'grid',
-              gridTemplateColumns: '52px 52px 52px',
-              gridTemplateRows: '52px 52px 52px',
+              gridTemplateColumns: '50px 50px 50px',
+              gridTemplateRows: '50px 50px 50px',
               gap: '4px',
+              zIndex: 10,
             }}
           >
             <div />
@@ -469,15 +515,29 @@ export default function App() {
             <div />
           </div>
 
-          {/* Botones de acción (Interactuar y Atacar) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '18px',
+              right: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              zIndex: 10,
+            }}
+          >
             <button
               type="button"
               onPointerDown={(e) => {
                 e.preventDefault();
                 mobileControlsRef.current?.interact();
               }}
-              style={{ ...actionBtnStyle, backgroundColor: '#0984e3', minWidth: '110px' }}
+              style={{
+                ...hudBtnStyle,
+                height: '46px',
+                minWidth: '106px',
+                backgroundColor: 'rgba(9, 132, 227, 0.85)',
+              }}
             >
               E (HABLAR)
             </button>
@@ -487,42 +547,17 @@ export default function App() {
                 e.preventDefault();
                 mobileControlsRef.current?.attack();
               }}
-              style={{ ...actionBtnStyle, backgroundColor: '#d63031', minWidth: '110px' }}
+              style={{
+                ...hudBtnStyle,
+                height: '46px',
+                minWidth: '106px',
+                backgroundColor: 'rgba(214, 48, 49, 0.85)',
+              }}
             >
               ATACAR
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Columna derecha: leyenda de controles (solo visible en PC) */}
-      {!isMobile && (
-        <div
-          style={{
-            width: '180px',
-            backgroundColor: '#141418',
-            border: '3px solid #ffffff',
-            padding: '12px 14px',
-            color: '#ffffff',
-            fontFamily: 'monospace',
-            fontSize: '13px',
-            lineHeight: '1.8',
-            textAlign: 'left',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#fdcb6e' }}>
-            CONTROLES
-          </div>
-          <div>W - Arriba</div>
-          <div>S - Abajo</div>
-          <div>A - Izquierda</div>
-          <div>D - Derecha</div>
-          <div>E - Interactuar</div>
-          <div>Clic izq - Atacar</div>
-          <div>Tab - Mapa</div>
-          <div>M - Mutear</div>
-        </div>
+        </>
       )}
     </div>
   );

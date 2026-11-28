@@ -1,9 +1,11 @@
-export const CANVAS_SIZE = 500;
+export const DEFAULT_WIDTH = typeof window !== 'undefined' ? window.innerWidth : 960;
+export const DEFAULT_HEIGHT = typeof window !== 'undefined' ? window.innerHeight : 540;
 export const DRAW_SIZE = 64;
 export const DRAW_H = Math.round(DRAW_SIZE * (219 / 172));
 export const SPEED = 4;
 
-export const MAX_PLAYER_HP = 3;
+export const MAX_PLAYER_HEARTS = 7;
+export const MAX_PLAYER_HP = MAX_PLAYER_HEARTS * 2;
 export const MAX_ENEMY_HP = 7;
 export const SAVE_KEY = 'juego_princesa_save_unico';
 
@@ -29,31 +31,45 @@ export const ATTACK_ANIMS = {
 };
 
 export const ROOMS = {
-  center: { color: '#d63031' }, // Rojo
-  top:    { color: '#00b894' }, // Verde (Norte)
-  bottom: { color: '#0984e3' }, // Azul (Sur - Punto de guardado)
-  left:   { color: '#6c5ce7' }, // Morado (Oeste)
-  right:  { color: '#fdcb6e' }, // Amarillo (Este)
+  // Cuando tengas el paisaje de cada cuarto, cambia bgSrc: null por ej. './assets/backgrounds/center.png'
+  center: { color: '#d63031', bgSrc: null }, // Rojo
+  top:    { color: '#00b894', bgSrc: null }, // Verde (Norte)
+  bottom: { color: '#0984e3', bgSrc: null }, // Azul (Sur - Punto de guardado)
+  left:   { color: '#6c5ce7', bgSrc: null }, // Morado (Oeste)
+  right:  { color: '#fdcb6e', bgSrc: null }, // Amarillo (Este)
 };
 
-export const MENU_BUTTONS = {
-  newGame:  { x: 130, y: 198, w: 240, h: 46, label: 'Partida nueva' },
-  loadGame: { x: 130, y: 262, w: 240, h: 46, label: 'Cargar partida' },
-};
+export function getMenuButtons(width, height) {
+  const cx = Math.round(width / 2);
+  const cy = Math.round(height / 2);
+  const btnW = 240;
+  const btnH = 46;
+  return {
+    newGame:  { x: cx - btnW / 2, y: cy - 52, w: btnW, h: btnH, label: 'Partida nueva' },
+    loadGame: { x: cx - btnW / 2, y: cy + 12, w: btnW, h: btnH, label: 'Cargar partida' },
+  };
+}
 
-export const MAP_ROOMS = {
-  center: { x: 195, y: 195, w: 110, h: 110 },
-  top:    { x: 195, y: 83,  w: 110, h: 76 },
-  bottom: { x: 195, y: 341, w: 110, h: 76 },
-  left:   { x: 83,  y: 195, w: 76,  h: 110 },
-  right:  { x: 341, y: 195, w: 76,  h: 110 },
-};
+export function getMapLayout(width, height) {
+  const cx = Math.round(width / 2);
+  const cy = Math.round(height / 2);
 
-export const MAP_CONNECTORS = [
-  { x: 236, y: 159, w: 28, h: 36 },
-  { x: 236, y: 305, w: 28, h: 36 },
-  { x: 159, y: 236, w: 36, h: 28 },
-  { x: 305, y: 236, w: 36, h: 28 },
-];
+  const rooms = {
+    center: { x: cx - 55,  y: cy - 55,  w: 110, h: 110 },
+    top:    { x: cx - 55,  y: cy - 167, w: 110, h: 76 },
+    bottom: { x: cx - 55,  y: cy + 91,  w: 110, h: 76 },
+    left:   { x: cx - 167, y: cy - 55,  w: 76,  h: 110 },
+    right:  { x: cx + 91,  y: cy - 55,  w: 76,  h: 110 },
+  };
+
+  const connectors = [
+    { x: cx - 14, y: cy - 91, w: 28, h: 36 },
+    { x: cx - 14, y: cy + 55, w: 28, h: 36 },
+    { x: cx - 91, y: cy - 14, w: 36, h: 28 },
+    { x: cx + 55, y: cy - 14, w: 36, h: 28 },
+  ];
+
+  return { rooms, connectors };
+}
 
 // aquí para futuros implementos de configuración de jefes, bloques y objetos

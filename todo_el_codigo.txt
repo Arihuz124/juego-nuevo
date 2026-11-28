@@ -1,0 +1,2158 @@
+﻿==> README.md <==
+# GuÃ­a del Proyecto (Nota para el programador)
+
+Hola pana del futuro, seguro entraste aquÃ­ despuÃ©s de un tiempo y te estÃ¡s preguntando para quÃ© diablos sirven tantos archivos y carpetas. Tranquilo, todo estÃ¡ separado para no volver a tener un `App.jsx` gigante e imposible de leer. 
+
+AquÃ­ tienes el mapa completo de dÃ³nde estÃ¡ cada cosa:
+
+---
+
+## 1. Recursos Visuales y Audio (`public/assets/`)
+AquÃ­ van todos los archivos multimedia limpios (imÃ¡genes y sonidos):
+* **`public/assets/sprites/player/sprites.jpg`**: La hoja de sprites principal de tu personaje (caminatas y ataques).
+* **`public/assets/sprites/npcs/`**: Sprites de los personajes secundarios (estÃ¡ticos o animados).
+* **`public/assets/sprites/bosses/`**: Sprites de los jefes y sus proyectiles/ataques.
+* **`public/assets/sprites/objects/`**: Cofres, bloques empujables y decoraciÃ³n de los cuartos.
+* **`public/assets/backgrounds/`**: Fondos dibujados para reemplazar los colores planos de cada sala.
+* **`public/assets/ui/`**: ImÃ¡genes de interfaz, como el diseÃ±o de `mapa.png`.
+* **`public/assets/audio/music/song.mp3`**: La mÃºsica de fondo principal.
+* **`public/assets/audio/sfx/`**: Efectos de sonido cortos (pasos, espadazos, abrir cofres, voces de diÃ¡logo).
+
+---
+
+## 2. El Contenedor Principal (`src/App.jsx`)
+Es el caparazÃ³n visual de React. **No tiene lÃ³gica del juego**, solo se encarga de:
+* Montar el `<canvas>` donde se dibuja todo a 60 FPS.
+* Escuchar el teclado (`WASD`, `E`, `Tab`, `M`) y el ratÃ³n.
+* Mostrar la leyenda de controles en PC o los botones tÃ¡ctiles (D-Pad, `E`, `ATACAR`, `MAPA`) cuando se abre desde un celular.
+* Bloquear el clic derecho y el menÃº contextual del navegador (lÃ­nea 324) para que no estorben al jugar.
+
+---
+
+## 3. El Motor del Juego (`src/game/`)
+Toda la lÃ³gica pura vive aquÃ­ dividida por responsabilidades:
+
+* **`constants.js`**: El archivo de configuraciÃ³n. AquÃ­ estÃ¡n las medidas del canvas, velocidades, vidas mÃ¡ximas, colores de las salas y **las coordenadas exactas `[fila, columna]` de los sprites de tu skin segÃºn cada direcciÃ³n de movimiento y ataque**.
+* **`assets.js`**: El cargador de imÃ¡genes. Importa las hojas de sprites y ejecuta la funciÃ³n que borra el fondo negro exterior automÃ¡ticamente antes de dibujarlas.
+* **`audio.js`**: Controla la mÃºsica de fondo (`song.mp3`), el muteo con la tecla `M` y los futuros efectos de sonido (SFX).
+* **`state.js`**: La memoria de la partida. Define dÃ³nde empieza el jugador, cuÃ¡nta vida tiene, el estado de los cofres/enemigos y las funciones para **guardar y cargar partida** en `localStorage` (checkpoint en el cuarto sur).
+* **`physics.js`**: Las matemÃ¡ticas de colisiÃ³n. Calcula las cajas de impacto (*hitboxes*) del jugador, la espada, enemigos, cofres y NPCs, ademÃ¡s de detectar si estÃ¡s lo suficientemente cerca para interactuar.
+* **`player.js`**: Todo lo que hace tu personaje: movimiento en 8 direcciones, animaciÃ³n de pasos, duraciÃ³n del espadazo y las transiciones al cruzar los bordes hacia los cuartos norte, sur, este y oeste.
+* **`npcs.js`**: Controla el comportamiento de los NPCs (como el del cuarto oeste) y sus futuras rutinas de movimiento o animaciones de entrada/salida.
+* **`interactions.js`**: Maneja la tecla `E` (abrir/cerrar el cofre este) y todo el sistema de cuadros de diÃ¡logo letra por letra estilo *Undertale*.
+* **`combat.js`**: La inteligencia de combate. Controla cada cuÃ¡nto dispara el enemigo del cuarto norte, la trayectoria de sus balas, el daÃ±o que recibes y el *respawn* en el Ãºltimo punto de guardado si te quedas sin corazones.
+* **`renderer.js`**: El pintor. Toma los datos actuales de `state.js` y dibuja todo en pantalla en orden: menÃº de inicio, fondo de la sala, enemigos, objetos, personaje, corazones de vida, caja de diÃ¡logo y el mapa interactivo con `Tab`.
+
+---
+
+## 4. Comandos rÃ¡pidos para guardar y publicar
+AcuÃ©rdate de entrar siempre a la carpeta del proyecto antes de correr cualquier comando:
+
+```bash
+cd mi-juego-limpio
+
+==> index.html <==
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>mi-juego-limpio</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+
+</html>
+
+==> package.json <==
+{
+  "name": "mi-juego-limpio",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "gh-pages": "^6.3.0",
+    "oxlint": "^1.90.0",
+    "vite": "^8.3.6"
+  }
+}
+
+==> vite.config.js <==
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  base: './',
+  
+});
+
+==> main.jsx <==
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+==> index.css <==
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #121212;
+  color: #ffffff;
+  font-family: monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+}
+
+==> App.css <==
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+
+==> App.jsx <==
+import { useEffect, useRef, useState } from 'react';
+import { getMenuButtons, getMapLayout } from './game/constants';
+import { loadGameAssets } from './game/assets';
+import { createAudioManager } from './game/audio';
+import {
+  createInitialGameState,
+  readSavedGame,
+  startNewGame,
+  loadSavedGame,
+  teleportToRoom,
+  returnToMenu,
+  resizeGameScreen,
+} from './game/state';
+import { pointInRect } from './game/physics';
+import { updatePlayer } from './game/player';
+import { updateNpcs } from './game/npcs';
+import {
+  advanceDialogue,
+  updateDialogue,
+  handleInteractionKey,
+} from './game/interactions';
+import { updateCombat } from './game/combat';
+import { drawGame } from './game/renderer';
+
+export default function App() {
+  const canvasRef = useRef(null);
+  const gameRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const returnToMenuRef = useRef(null);
+  const mobileControlsRef = useRef(null);
+
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  const [isMobile, setIsMobile] = useState(
+    () => window.innerWidth <= 880 || 'ontouchstart' in window
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setViewport({ width: w, height: h });
+      setIsMobile(w <= 880 || 'ontouchstart' in window);
+
+      if (gameRef.current) {
+        resizeGameScreen(gameRef.current, w, h);
+      }
+      if (canvasRef.current) {
+        canvasRef.current.width = w;
+        canvasRef.current.height = h;
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const assets = loadGameAssets();
+    const audio = createAudioManager();
+    const game = createInitialGameState();
+    resizeGameScreen(game, window.innerWidth, window.innerHeight);
+    canvas.width = game.width;
+    canvas.height = game.height;
+    gameRef.current = game;
+
+    returnToMenuRef.current = () => {
+      returnToMenu(game, setIsPlaying);
+    };
+
+    mobileControlsRef.current = {
+      setKey: (key, isPressed) => {
+        audio.startMusic();
+        if (game.screen !== 'playing' || game.isMapOpen || game.dialogue.active) {
+          game.keys[key] = false;
+          return;
+        }
+        game.keys[key] = isPressed;
+      },
+      attack: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing') return;
+        if (game.dialogue.active) {
+          advanceDialogue(game);
+          return;
+        }
+        if (!game.isMapOpen && !game.isAttacking) {
+          game.isAttacking = true;
+          game.attackHasHit = false;
+          game.attackFrame = 0;
+          game.attackTimer = 0;
+        }
+      },
+      interact: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing') return;
+        if (game.dialogue.active) {
+          advanceDialogue(game);
+          return;
+        }
+        if (!game.isMapOpen) {
+          handleInteractionKey(game);
+        }
+      },
+      toggleMap: () => {
+        audio.startMusic();
+        if (game.screen !== 'playing' || game.dialogue.active) return;
+        game.isMapOpen = !game.isMapOpen;
+        game.hoveredMapRoom = null;
+      },
+      toggleMute: () => {
+        audio.startMusic();
+        audio.toggleMute();
+      },
+      toggleGuide: () => {
+        if (game.screen !== 'playing') return;
+        game.showControlsGuide = !game.showControlsGuide;
+      },
+    };
+
+    const getCanvasCoords = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = game.width / rect.width;
+      const scaleY = game.height / rect.height;
+      return {
+        mx: (e.clientX - rect.left) * scaleX,
+        my: (e.clientY - rect.top) * scaleY,
+      };
+    };
+
+    const handleKeyDown = (e) => {
+      audio.startMusic();
+
+      if (e.key.toLowerCase() === 'm') {
+        audio.toggleMute();
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'h' && game.screen === 'playing') {
+        game.showControlsGuide = !game.showControlsGuide;
+        return;
+      }
+
+      if (game.dialogue.active) {
+        e.preventDefault();
+        advanceDialogue(game);
+        return;
+      }
+
+      if (game.screen === 'menu') {
+        if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') {
+          e.preventDefault();
+          game.menuSelected = 0;
+        } else if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          if (readSavedGame()) game.menuSelected = 1;
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (game.menuSelected === 0) {
+            startNewGame(game, setIsPlaying);
+          } else if (game.menuSelected === 1 && readSavedGame()) {
+            loadSavedGame(game, setIsPlaying);
+          }
+        }
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (!e.repeat) {
+          game.isMapOpen = !game.isMapOpen;
+          game.hoveredMapRoom = null;
+        }
+        return;
+      }
+
+      if (!game.isMapOpen && e.key.toLowerCase() === 'e') {
+        if (handleInteractionKey(game)) {
+          return;
+        }
+      }
+
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+      game.keys[e.key.toLowerCase()] = true;
+    };
+
+    const handleKeyUp = (e) => {
+      game.keys[e.key.toLowerCase()] = false;
+    };
+
+    const handleWindowBlur = () => {
+      game.keys = {};
+    };
+
+    const handleMouseMove = (e) => {
+      const { mx, my } = getCanvasCoords(e);
+
+      if (game.screen === 'menu') {
+        const menuButtons = getMenuButtons(game.width, game.height);
+        if (pointInRect(mx, my, menuButtons.newGame)) {
+          game.menuHovered = 'newGame';
+          game.menuSelected = 0;
+        } else if (pointInRect(mx, my, menuButtons.loadGame)) {
+          game.menuHovered = 'loadGame';
+          if (readSavedGame()) game.menuSelected = 1;
+        } else {
+          game.menuHovered = null;
+        }
+        return;
+      }
+
+      if (!game.isMapOpen) {
+        game.hoveredMapRoom = null;
+        return;
+      }
+
+      const { rooms: mapRooms } = getMapLayout(game.width, game.height);
+      let found = null;
+      for (const [roomKey, rect] of Object.entries(mapRooms)) {
+        if (pointInRect(mx, my, rect)) {
+          found = roomKey;
+          break;
+        }
+      }
+      game.hoveredMapRoom = found;
+    };
+
+    const handleMouseDown = (e) => {
+      audio.startMusic();
+      const { mx, my } = getCanvasCoords(e);
+
+      if (game.screen === 'menu') {
+        const menuButtons = getMenuButtons(game.width, game.height);
+        if (pointInRect(mx, my, menuButtons.newGame)) {
+          startNewGame(game, setIsPlaying);
+          return;
+        }
+        if (pointInRect(mx, my, menuButtons.loadGame) && readSavedGame()) {
+          loadSavedGame(game, setIsPlaying);
+          return;
+        }
+        return;
+      }
+
+      if (game.dialogue.active) {
+        advanceDialogue(game);
+        return;
+      }
+
+      if (game.isMapOpen) {
+        const { rooms: mapRooms } = getMapLayout(game.width, game.height);
+        for (const [roomKey, rect] of Object.entries(mapRooms)) {
+          if (pointInRect(mx, my, rect)) {
+            teleportToRoom(game, roomKey);
+            return;
+          }
+        }
+        return;
+      }
+
+      if (!game.isAttacking) {
+        game.isAttacking = true;
+        game.attackHasHit = false;
+        game.attackFrame = 0;
+        game.attackTimer = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mousedown', handleMouseDown);
+
+    let animationFrameId;
+
+    const loop = () => {
+      if (game.screen === 'playing' && !game.isMapOpen) {
+        if (game.dialogue.active) {
+          updateDialogue(game);
+        } else {
+          if (game.saveNoticeTimer > 0) game.saveNoticeTimer -= 1;
+          if (game.playerHitFlash > 0) game.playerHitFlash -= 1;
+          if (game.northEnemy.hitFlash > 0) game.northEnemy.hitFlash -= 1;
+
+          updatePlayer(game);
+          updateNpcs(game);
+          updateCombat(game);
+        }
+      }
+
+      drawGame(ctx, game, assets);
+      animationFrameId = requestAnimationFrame(loop);
+    };
+
+    loop();
+
+    return () => {
+      audio.stopMusic();
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  const bindHoldKey = (key) => ({
+    onPointerDown: (e) => {
+      e.preventDefault();
+      mobileControlsRef.current?.setKey(key, true);
+    },
+    onPointerUp: (e) => {
+      e.preventDefault();
+      mobileControlsRef.current?.setKey(key, false);
+    },
+    onPointerLeave: () => {
+      mobileControlsRef.current?.setKey(key, false);
+    },
+    onPointerCancel: () => {
+      mobileControlsRef.current?.setKey(key, false);
+    },
+  });
+
+  const dpadBtnStyle = {
+    width: '50px',
+    height: '50px',
+    backgroundColor: 'rgba(37, 37, 45, 0.78)',
+    color: '#ffffff',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
+    fontFamily: 'monospace',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+    touchAction: 'none',
+    padding: 0,
+  };
+
+  const hudBtnStyle = {
+    height: '36px',
+    padding: '0 10px',
+    backgroundColor: 'rgba(20, 20, 24, 0.78)',
+    color: '#ffffff',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
+    fontFamily: 'monospace',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+    touchAction: 'none',
+  };
+
+  //BLOQUEO DE CLICCK derecho
+  useEffect(() => {
+    const bloquearClicDerecho = (e) => {
+      if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const bloquearMenuContextual = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    document.addEventListener('mousedown', bloquearClicDerecho, true);
+    document.addEventListener('contextmenu', bloquearMenuContextual, true);
+
+    return () => {
+      document.removeEventListener('mousedown', bloquearClicDerecho, true);
+      //document.removeEventListener('contextmenu', bloquearMenuContextual, true);
+    };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+      }}
+    >
+      {/* Pantalla completa del juego */}
+      <canvas
+        ref={canvasRef}
+        width={viewport.width}
+        height={viewport.height}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          imageRendering: 'pixelated',
+          cursor: 'pointer',
+          touchAction: 'none',
+        }}
+      />
+
+      {/* Botones flotantes superiores izquierdos encima del juego */}
+      {isPlaying && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            display: 'flex',
+            gap: '8px',
+            zIndex: 10,
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              returnToMenuRef.current?.();
+            }}
+            title="Volver al menÃº"
+            style={{ ...hudBtnStyle, width: '36px', padding: 0, fontSize: '18px' }}
+          >
+            â†
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              mobileControlsRef.current?.toggleGuide();
+            }}
+            title="GuÃ­a de controles (H)"
+            style={{ ...hudBtnStyle, width: '36px', padding: 0, fontSize: '16px' }}
+          >
+            ?
+          </button>
+
+          {isMobile && (
+            <>
+              <button
+                type="button"
+                onClick={() => mobileControlsRef.current?.toggleMap()}
+                style={hudBtnStyle}
+              >
+                MAPA
+              </button>
+              <button
+                type="button"
+                onClick={() => mobileControlsRef.current?.toggleMute()}
+                style={{ ...hudBtnStyle, width: '36px', padding: 0 }}
+              >
+                â™ª
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Controles tÃ¡ctiles flotantes en celular */}
+      {isMobile && isPlaying && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '74px',
+              left: '16px',
+              display: 'grid',
+              gridTemplateColumns: '50px 50px 50px',
+              gridTemplateRows: '50px 50px 50px',
+              gap: '4px',
+              zIndex: 10,
+            }}
+          >
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('w')}>
+              â–²
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('a')}>
+              â—€
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('d')}>
+              â–¶
+            </button>
+            <div />
+            <button type="button" style={dpadBtnStyle} {...bindHoldKey('s')}>
+              â–¼
+            </button>
+            <div />
+          </div>
+
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '18px',
+              right: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              zIndex: 10,
+            }}
+          >
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                mobileControlsRef.current?.interact();
+              }}
+              style={{
+                ...hudBtnStyle,
+                height: '46px',
+                minWidth: '106px',
+                backgroundColor: 'rgba(9, 132, 227, 0.85)',
+              }}
+            >
+              E (HABLAR)
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                mobileControlsRef.current?.attack();
+              }}
+              style={{
+                ...hudBtnStyle,
+                height: '46px',
+                minWidth: '106px',
+                backgroundColor: 'rgba(214, 48, 49, 0.85)',
+              }}
+            >
+              ATACAR
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+==> assets.js <==
+import { COLS, ROWS, ROOMS } from './constants';
+
+function removeExteriorBlack(img) {
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = img.naturalWidth;
+  offCanvas.height = img.naturalHeight;
+  const ctx = offCanvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+  const data = imgData.data;
+  const w = offCanvas.width;
+  const h = offCanvas.height;
+
+  const cellW = Math.floor(w / COLS);
+  const cellH = Math.floor(h / ROWS);
+  const visited = new Uint8Array(w * h);
+
+  const isBlack = (x, y) => {
+    const idx = (y * w + x) * 4;
+    return data[idx] < 30 && data[idx + 1] < 30 && data[idx + 2] < 30;
+  };
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x0 = c * cellW;
+      const y0 = r * cellH;
+      const x1 = Math.min(w, (c + 1) * cellW);
+      const y1 = Math.min(h, (r + 1) * cellH);
+
+      const queue = [];
+      const pushIfBlack = (x, y) => {
+        const pos = y * w + x;
+        if (!visited[pos] && isBlack(x, y)) {
+          visited[pos] = 1;
+          queue.push(x, y);
+        }
+      };
+
+      for (let x = x0; x < x1; x++) {
+        pushIfBlack(x, y0);
+        pushIfBlack(x, y1 - 1);
+      }
+      for (let y = y0; y < y1; y++) {
+        pushIfBlack(x0, y);
+        pushIfBlack(x1 - 1, y);
+      }
+
+      let head = 0;
+      while (head < queue.length) {
+        const cx = queue[head++];
+        const cy = queue[head++];
+        data[(cy * w + cx) * 4 + 3] = 0;
+
+        if (cx > x0) pushIfBlack(cx - 1, cy);
+        if (cx + 1 < x1) pushIfBlack(cx + 1, cy);
+        if (cy > y0) pushIfBlack(cx, cy - 1);
+        if (cy + 1 < y1) pushIfBlack(cx, cy + 1);
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return offCanvas;
+}
+
+export function loadGameAssets() {
+  const assets = {
+    cleanSheet: null,
+    mapImg: null,
+    heartFull: null,
+    heartHalf: null,
+    heartEmpty: null,
+    backgrounds: {},
+    cooldownIcons: {
+      attack: null, // aquÃ­ para futura imagen de cooldown de ataque (ej. './assets/ui/cd_ataque.png')
+      magic: null,  // aquÃ­ para futura imagen de cooldown de magia (ej. './assets/ui/cd_magia.png')
+    },
+    // aquÃ­ para futuros implementos de sprites de NPCs animados (npcs: {})
+    // aquÃ­ para futuros implementos de sprites de jefes y sus ataques (bosses: {})
+    // aquÃ­ para futuros implementos de sprites de objetos interactuables y bloques (objects: {})
+  };
+
+  const rawImg = new Image();
+  rawImg.src = './assets/sprites/player/sprites.jpg';
+  rawImg.onload = () => {
+    assets.cleanSheet = removeExteriorBlack(rawImg);
+  };
+
+  const mapImg = new Image();
+  mapImg.src = './assets/ui/mapa.png';
+  mapImg.onload = () => {
+    assets.mapImg = mapImg;
+  };
+
+  const loadUiImage = (src, onLoad) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => onLoad(img);
+  };
+
+  loadUiImage('./assets/ui/corazon.png', (img) => {
+    assets.heartFull = img;
+  });
+  loadUiImage('./assets/ui/corazonmedio.png', (img) => {
+    assets.heartHalf = img;
+  });
+  loadUiImage('./assets/ui/corazonvacio.png', (img) => {
+    assets.heartEmpty = img;
+  });
+
+  // Carga automÃ¡tica de paisajes para cada sala definida en ROOMS
+  for (const [roomKey, roomData] of Object.entries(ROOMS)) {
+    if (roomData.bgSrc) {
+      loadUiImage(roomData.bgSrc, (img) => {
+        assets.backgrounds[roomKey] = img;
+      });
+    }
+  }
+
+  return assets;
+}
+
+==> audio.js <==
+export function createAudioManager() {
+  const bgMusic = new Audio('./assets/audio/music/song.mp3');
+  bgMusic.loop = true;
+  bgMusic.volume = 0.4;
+  let musicStarted = false;
+
+  // aquÃ­ para futuros implementos de mÃºsica dinÃ¡mica por escenario o combate de jefe
+  // aquÃ­ para futuros implementos de efectos de sonido (caminatas, ataques, diÃ¡logos, empujar bloques)
+
+  return {
+    startMusic() {
+      if (!musicStarted) {
+        bgMusic
+          .play()
+          .then(() => {
+            musicStarted = true;
+          })
+          .catch(() => {});
+      }
+    },
+    toggleMute() {
+      bgMusic.muted = !bgMusic.muted;
+    },
+    stopMusic() {
+      bgMusic.pause();
+    },
+    // aquÃ­ para futuros implementos de mÃ©todos playSfx(nombre) y changeMusic(pista)
+  };
+}
+
+==> combat.js <==
+import { DRAW_SIZE, DRAW_H } from './constants';
+import { rectsOverlap, getPlayerBox } from './physics';
+import { respawnAtLastCheckpoint } from './state';
+
+export function updateCombat(game) {
+  if (game.room !== 'top') return;
+
+  const enemy = game.northEnemy;
+
+  if (enemy.hp > 0) {
+    enemy.shootTimer += 1;
+    if (enemy.shootTimer >= 70) {
+      enemy.shootTimer = 0;
+      const bulletSize = 20;
+      const startX = enemy.x + enemy.size / 2 - bulletSize / 2;
+      const startY = enemy.y + enemy.size / 2 - bulletSize / 2;
+
+      const targetX = game.x + DRAW_SIZE / 2 - bulletSize / 2;
+      const targetY = game.y + DRAW_H / 2 - bulletSize / 2;
+      const angle = Math.atan2(targetY - startY, targetX - startX);
+      const bulletSpeed = 5;
+
+      game.bullets.push({
+        x: startX,
+        y: startY,
+        vx: Math.cos(angle) * bulletSpeed,
+        vy: Math.sin(angle) * bulletSpeed,
+        size: bulletSize,
+      });
+    }
+  }
+
+  const pBox = getPlayerBox(game);
+  const remainingBullets = [];
+
+  for (const b of game.bullets) {
+    b.x += b.vx;
+    b.y += b.vy;
+
+    const bBox = { x: b.x, y: b.y, w: b.size, h: b.size };
+
+    if (rectsOverlap(pBox, bBox)) {
+      game.playerHp -= 1;
+      game.playerHitFlash = 14;
+      // aquÃ­ para futuros implementos de sonido de daÃ±o recibido
+
+      if (game.playerHp <= 0) {
+        respawnAtLastCheckpoint(game);
+        return;
+      }
+    } else if (
+      b.x > -b.size &&
+      b.x < game.width &&
+      b.y > -b.size &&
+      b.y < game.height
+    ) {
+      remainingBullets.push(b);
+    }
+  }
+
+  game.bullets = remainingBullets;
+
+  // aquÃ­ para futuros implementos de jefes con mÃºltiples fases y patrones de ataque
+}
+
+==> constants.js <==
+export const DEFAULT_WIDTH = typeof window !== 'undefined' ? window.innerWidth : 960;
+export const DEFAULT_HEIGHT = typeof window !== 'undefined' ? window.innerHeight : 540;
+export const DRAW_SIZE = 64;
+export const DRAW_H = Math.round(DRAW_SIZE * (219 / 172));
+export const SPEED = 4;
+
+export const MAX_PLAYER_HEARTS = 7;
+export const MAX_PLAYER_HP = MAX_PLAYER_HEARTS * 2;
+export const MAX_ENEMY_HP = 7;
+export const SAVE_KEY = 'juego_princesa_save_unico';
+
+export const COLS = 12;
+export const ROWS = 10;
+
+export const WALK_ANIMS = {
+  '0,-1':  [[0, 0], [0, 8],  [1, 4]],   // Arriba
+  '1,-1':  [[0, 1], [0, 9],  [1, 5]],   // Arriba-Derecha
+  '1,0':   [[0, 2], [0, 10], [1, 6]],   // Derecha
+  '1,1':   [[0, 3], [0, 11], [1, 7]],   // Abajo-Derecha
+  '0,1':   [[0, 4], [1, 0],  [1, 8]],   // Abajo
+  '-1,1':  [[0, 5], [1, 1],  [1, 9]],   // Abajo-Izquierda
+  '-1,0':  [[0, 6], [1, 2],  [1, 10]],  // Izquierda
+  '-1,-1': [[0, 7], [1, 3],  [1, 11]],  // Arriba-Izquierda
+};
+
+export const ATTACK_ANIMS = {
+  up:    [[4, 2], [4, 5], [4, 1]], 
+  down:  [[5, 6], [4, 3], [5, 8], [5, 9]],
+  right: [[7, 6], [8, 2], [8, 4], [9, 0]],
+  left:  [[7, 1], [7, 7], [6, 11]],
+};
+
+export const ROOMS = {
+  // Cuando tengas el paisaje de cada cuarto, cambia bgSrc: null por ej. './assets/backgrounds/center.png'
+  center: { color: '#d63031', bgSrc: null }, // Rojo
+  top:    { color: '#00b894', bgSrc: null }, // Verde (Norte)
+  bottom: { color: '#0984e3', bgSrc: null }, // Azul (Sur - Punto de guardado)
+  left:   { color: '#6c5ce7', bgSrc: null }, // Morado (Oeste)
+  right:  { color: '#fdcb6e', bgSrc: null }, // Amarillo (Este)
+};
+
+export function getMenuButtons(width, height) {
+  const cx = Math.round(width / 2);
+  const cy = Math.round(height / 2);
+  const btnW = 240;
+  const btnH = 46;
+  return {
+    newGame:  { x: cx - btnW / 2, y: cy - 52, w: btnW, h: btnH, label: 'Partida nueva' },
+    loadGame: { x: cx - btnW / 2, y: cy + 12, w: btnW, h: btnH, label: 'Cargar partida' },
+  };
+}
+
+export function getMapLayout(width, height) {
+  const cx = Math.round(width / 2);
+  const cy = Math.round(height / 2);
+
+  const rooms = {
+    center: { x: cx - 55,  y: cy - 55,  w: 110, h: 110 },
+    top:    { x: cx - 55,  y: cy - 167, w: 110, h: 76 },
+    bottom: { x: cx - 55,  y: cy + 91,  w: 110, h: 76 },
+    left:   { x: cx - 167, y: cy - 55,  w: 76,  h: 110 },
+    right:  { x: cx + 91,  y: cy - 55,  w: 76,  h: 110 },
+  };
+
+  const connectors = [
+    { x: cx - 14, y: cy - 91, w: 28, h: 36 },
+    { x: cx - 14, y: cy + 55, w: 28, h: 36 },
+    { x: cx - 91, y: cy - 14, w: 36, h: 28 },
+    { x: cx + 55, y: cy - 14, w: 36, h: 28 },
+  ];
+
+  return { rooms, connectors };
+}
+
+// aquÃ­ para futuros implementos de configuraciÃ³n de jefes, bloques y objetos
+
+==> interactions.js <==
+import {
+  isNear,
+  getPlayerBox,
+  getChestBox,
+  getNpcBox,
+} from './physics';
+
+export function advanceDialogue(game) {
+  const currentLine = game.dialogue.lines[game.dialogue.lineIndex] || '';
+  if (game.dialogue.charIndex < currentLine.length) return;
+
+  game.dialogue.lineIndex += 1;
+  if (game.dialogue.lineIndex >= game.dialogue.lines.length) {
+    game.dialogue.active = false;
+    game.keys = {};
+  } else {
+    game.dialogue.charIndex = 0;
+    game.dialogue.timer = 0;
+  }
+}
+
+export function updateDialogue(game) {
+  const currentLine = game.dialogue.lines[game.dialogue.lineIndex] || '';
+  if (game.dialogue.charIndex < currentLine.length) {
+    game.dialogue.timer += 1;
+    if (game.dialogue.timer >= 2) {
+      game.dialogue.timer = 0;
+      game.dialogue.charIndex += 1;
+      // aquÃ­ para futuros implementos de sonido de voz/texto al escribir letra
+    }
+  }
+}
+
+export function handleInteractionKey(game) {
+  if (game.room === 'right' && isNear(getPlayerBox(game), getChestBox(game))) {
+    game.eastChest.isOpen = !game.eastChest.isOpen;
+    // aquÃ­ para futuros implementos de sonido al abrir/cerrar cofre
+    return true;
+  }
+
+  if (game.room === 'left' && isNear(getPlayerBox(game), getNpcBox(game))) {
+    game.dialogue = {
+      active: true,
+      lines: [
+        'hello world',
+        'perdon fue un chiste, como sea quieres ir a ver mi cuarto?',
+      ],
+      lineIndex: 0,
+      charIndex: 0,
+      timer: 0,
+    };
+    game.keys = {};
+    game.isMoving = false;
+    return true;
+  }
+
+  // aquÃ­ para futuros implementos de empujar bloques para puzzles
+  // aquÃ­ para futuros implementos de abrir/cerrar interfaces pequeÃ±as para ver detalles de cosas
+
+  return false;
+}
+
+==> npcs.js <==
+export function updateNpcs(game) {
+  // aquÃ­ se gestionan los NPCs actuales (game.westNpc)
+  // aquÃ­ para futuros implementos de movimiento autÃ³nomo y animaciones de NPCs
+}
+
+==> physics.js <==
+import { DRAW_SIZE, DRAW_H } from './constants';
+
+export function rectsOverlap(a, b) {
+  return (
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
+  );
+}
+
+export function pointInRect(px, py, r) {
+  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+}
+
+export function getPlayerBox(game, px = game.x, py = game.y) {
+  return {
+    x: px + 14,
+    y: py + 16,
+    w: DRAW_SIZE - 28,
+    h: DRAW_H - 22,
+  };
+}
+
+export function getEnemyBox(game) {
+  return {
+    x: game.northEnemy.x,
+    y: game.northEnemy.y,
+    w: game.northEnemy.size,
+    h: game.northEnemy.size,
+  };
+}
+
+export function getChestBox(game) {
+  return {
+    x: game.eastChest.x,
+    y: game.eastChest.y,
+    w: game.eastChest.size,
+    h: game.eastChest.size,
+  };
+}
+
+export function getNpcBox(game) {
+  return {
+    x: game.westNpc.x + 14,
+    y: game.westNpc.y + 16,
+    w: game.westNpc.w - 28,
+    h: game.westNpc.h - 22,
+  };
+}
+
+export function isNear(a, b, margin = 36) {
+  return rectsOverlap(a, {
+    x: b.x - margin,
+    y: b.y - margin,
+    w: b.w + margin * 2,
+    h: b.h + margin * 2,
+  });
+}
+
+export function hitsRoomObstacle(game, px, py) {
+  const pBox = getPlayerBox(game, px, py);
+  if (game.room === 'top' && game.northEnemy.hp > 0) {
+    return rectsOverlap(pBox, getEnemyBox(game));
+  }
+  if (game.room === 'right') {
+    return rectsOverlap(pBox, getChestBox(game));
+  }
+  if (game.room === 'left') {
+    return rectsOverlap(pBox, getNpcBox(game));
+  }
+  // aquÃ­ para futuros implementos de colisiones con bloques empujables y paredes de escenarios
+  return false;
+}
+
+export function getSwordHitbox(game) {
+  const p = getPlayerBox(game);
+  const reach = 36;
+  if (game.lastCardinal === 'up') {
+    return { x: p.x - 6, y: p.y - reach, w: p.w + 12, h: reach };
+  }
+  if (game.lastCardinal === 'down') {
+    return { x: p.x - 6, y: p.y + p.h, w: p.w + 12, h: reach };
+  }
+  if (game.lastCardinal === 'left') {
+    return { x: p.x - reach, y: p.y - 4, w: reach, h: p.h + 8 };
+  }
+  return { x: p.x + p.w, y: p.y - 4, w: reach, h: p.h + 8 };
+}
+
+==> player.js <==
+import {
+  DRAW_SIZE,
+  DRAW_H,
+  SPEED,
+  WALK_ANIMS,
+  ATTACK_ANIMS,
+} from './constants';
+import {
+  rectsOverlap,
+  hitsRoomObstacle,
+  getSwordHitbox,
+  getEnemyBox,
+} from './physics';
+import { saveCheckpointAtSouth } from './state';
+
+export function updatePlayer(game) {
+  if (game.isAttacking) {
+    const frames = ATTACK_ANIMS[game.lastCardinal] || ATTACK_ANIMS.down;
+    game.attackTimer += 1;
+
+    if (
+      !game.attackHasHit &&
+      game.room === 'top' &&
+      game.northEnemy.hp > 0
+    ) {
+      if (rectsOverlap(getSwordHitbox(game), getEnemyBox(game))) {
+        game.attackHasHit = true;
+        game.northEnemy.hp -= 1;
+        game.northEnemy.hitFlash = 10;
+        // aquÃ­ para futuros implementos de sonido de golpe con espada
+        if (game.northEnemy.hp <= 0) {
+          game.northEnemy.hp = 0;
+          game.bullets = [];
+        }
+      }
+    }
+
+    if (game.attackTimer >= 5) {
+      game.attackTimer = 0;
+      game.attackFrame += 1;
+      if (game.attackFrame >= frames.length) {
+        game.isAttacking = false;
+        game.attackFrame = 0;
+      }
+    }
+  }
+
+  let dx = 0;
+  let dy = 0;
+
+  if (game.keys['arrowup'] || game.keys['w']) dy -= 1;
+  if (game.keys['arrowdown'] || game.keys['s']) dy += 1;
+  if (game.keys['arrowleft'] || game.keys['a']) dx -= 1;
+  if (game.keys['arrowright'] || game.keys['d']) dx += 1;
+
+  game.isMoving = dx !== 0 || dy !== 0;
+
+  if (game.isMoving && !game.isAttacking) {
+    const key = `${dx},${dy}`;
+    if (WALK_ANIMS[key]) {
+      game.dirKey = key;
+    }
+
+    if (dy < 0) game.lastCardinal = 'up';
+    else if (dy > 0) game.lastCardinal = 'down';
+    else if (dx < 0) game.lastCardinal = 'left';
+    else if (dx > 0) game.lastCardinal = 'right';
+
+    const len = Math.hypot(dx, dy);
+    const vx = (dx / len) * SPEED;
+    const vy = (dy / len) * SPEED;
+
+    const prevX = game.x;
+    game.x += vx;
+    if (hitsRoomObstacle(game, game.x, game.y)) {
+      game.x = prevX;
+    }
+
+    const prevY = game.y;
+    game.y += vy;
+    if (hitsRoomObstacle(game, game.x, game.y)) {
+      game.y = prevY;
+    }
+
+    game.animTimer += 1;
+    if (game.animTimer >= 8) {
+      game.animTimer = 0;
+      game.animIndex = (game.animIndex + 1) % 3;
+      // aquÃ­ para futuros implementos de sonido de caminata (pasos)
+    }
+  } else if (!game.isAttacking) {
+    game.animIndex = 1;
+    game.animTimer = 0;
+  }
+
+  const maxPosX = game.width - DRAW_SIZE;
+  const maxPosY = game.height - DRAW_H;
+  const offset = 6;
+
+  if (game.room === 'center') {
+    if (game.y <= 0) {
+      game.room = 'top';
+      game.y = maxPosY - offset;
+    } else if (game.y >= maxPosY) {
+      game.room = 'bottom';
+      game.y = offset;
+      saveCheckpointAtSouth(game);
+    } else if (game.x <= 0) {
+      game.room = 'left';
+      game.x = maxPosX - offset;
+    } else if (game.x >= maxPosX) {
+      game.room = 'right';
+      game.x = offset;
+    }
+  } else if (game.room === 'top') {
+    if (game.y >= maxPosY) {
+      game.room = 'center';
+      game.y = offset;
+      game.bullets = [];
+    }
+    if (game.y < 0) game.y = 0;
+    if (game.x < 0) game.x = 0;
+    if (game.x > maxPosX) game.x = maxPosX;
+  } else if (game.room === 'bottom') {
+    if (game.y <= 0) {
+      game.room = 'center';
+      game.y = maxPosY - offset;
+    }
+    if (game.y > maxPosY) game.y = maxPosY;
+    if (game.x < 0) game.x = 0;
+    if (game.x > maxPosX) game.x = maxPosX;
+  } else if (game.room === 'left') {
+    if (game.x >= maxPosX) {
+      game.room = 'center';
+      game.x = offset;
+    }
+    if (game.x < 0) game.x = 0;
+    if (game.y < 0) game.y = 0;
+    if (game.y > maxPosY) game.y = maxPosY;
+  } else if (game.room === 'right') {
+    if (game.x <= 0) {
+      game.room = 'center';
+      game.x = maxPosX - offset;
+    }
+    if (game.x > maxPosX) game.x = maxPosX;
+    if (game.y < 0) game.y = 0;
+    if (game.y > maxPosY) game.y = maxPosY;
+  }
+}
+
+==> renderer.js <==
+import {
+  DRAW_SIZE,
+  DRAW_H,
+  MAX_PLAYER_HEARTS,
+  MAX_ENEMY_HP,
+  COLS,
+  ROWS,
+  WALK_ANIMS,
+  ATTACK_ANIMS,
+  ROOMS,
+  getMenuButtons,
+  getMapLayout,
+} from './constants';
+import { readSavedGame } from './state';
+
+function drawPixelHeart(ctx, x, y, filled) {
+  const pattern = [
+    '01100110',
+    '11111111',
+    '11111111',
+    '11111111',
+    '01111110',
+    '00111100',
+    '00011000',
+  ];
+  const pixelSize = 3;
+
+  ctx.fillStyle = '#111111';
+  for (let r = 0; r < pattern.length; r++) {
+    for (let c = 0; c < pattern[r].length; c++) {
+      if (pattern[r][c] === '1') {
+        ctx.fillRect(
+          x + c * pixelSize - 1,
+          y + r * pixelSize - 1,
+          pixelSize + 2,
+          pixelSize + 2
+        );
+      }
+    }
+  }
+
+  ctx.fillStyle = filled ? '#ff2e4c' : '#3a3a3a';
+  for (let r = 0; r < pattern.length; r++) {
+    for (let c = 0; c < pattern[r].length; c++) {
+      if (pattern[r][c] === '1') {
+        ctx.fillRect(x + c * pixelSize, y + r * pixelSize, pixelSize, pixelSize);
+      }
+    }
+  }
+
+  if (filled) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x + 2 * pixelSize, y + 1 * pixelSize, pixelSize, pixelSize);
+  }
+}
+
+function drawStartMenu(ctx, game) {
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(0, 0, game.width, game.height);
+
+  const hasSave = Boolean(readSavedGame());
+  const menuButtons = getMenuButtons(game.width, game.height);
+
+  const drawButton = (btn, index, enabled) => {
+    const isActive =
+      enabled &&
+      ((index === 0 && (game.menuHovered === 'newGame' || game.menuSelected === 0)) ||
+        (index === 1 && (game.menuHovered === 'loadGame' || game.menuSelected === 1)));
+
+    ctx.fillStyle = !enabled
+      ? '#1e1e24'
+      : isActive
+      ? '#d63031'
+      : '#25252d';
+    ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
+
+    ctx.strokeStyle = !enabled
+      ? '#3a3a44'
+      : isActive
+      ? '#ffffff'
+      : '#777788';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
+
+    ctx.fillStyle = !enabled ? '#555562' : '#ffffff';
+    ctx.font = 'bold 17px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+  };
+
+  drawButton(menuButtons.newGame, 0, true);
+  drawButton(menuButtons.loadGame, 1, hasSave);
+}
+
+function drawMapOverlay(ctx, game) {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillRect(0, 0, game.width, game.height);
+
+  const { rooms: mapRooms, connectors: mapConnectors } = getMapLayout(
+    game.width,
+    game.height
+  );
+
+  ctx.fillStyle = '#000000';
+  mapConnectors.forEach((conn) => {
+    ctx.fillRect(conn.x, conn.y, conn.w, conn.h);
+  });
+
+  for (const [roomKey, rect] of Object.entries(mapRooms)) {
+    const isCurrent = game.room === roomKey;
+    const isHovered = game.hoveredMapRoom === roomKey;
+
+    ctx.fillStyle = '#5c0d0d';
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    ctx.fillStyle = isHovered ? '#b82525' : '#8e1b1b';
+    ctx.fillRect(rect.x + 6, rect.y + 6, rect.w - 12, rect.h - 12);
+
+    if (isCurrent) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(rect.x + 1.5, rect.y + 1.5, rect.w - 3, rect.h - 3);
+    }
+  }
+}
+
+function drawDialogueBox(ctx, game, assets) {
+  const boxW = Math.min(760, game.width - 32);
+  const boxX = Math.round((game.width - boxW) / 2);
+  const boxY = game.height - 144;
+  const boxH = 128;
+
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+  if (assets.cleanSheet) {
+    ctx.imageSmoothingEnabled = false;
+    const frameW = assets.cleanSheet.width / COLS;
+    const frameH = assets.cleanSheet.height / ROWS;
+    const [r, c] = game.westNpc.sprite;
+    ctx.drawImage(
+      assets.cleanSheet,
+      c * frameW,
+      r * frameH,
+      frameW,
+      frameH,
+      boxX + 14,
+      boxY + 14,
+      76,
+      Math.round(76 * (frameH / frameW))
+    );
+  }
+
+  const currentLine = game.dialogue.lines[game.dialogue.lineIndex] || '';
+  const visibleText = currentLine.slice(0, game.dialogue.charIndex);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const textX = boxX + 106;
+  const maxTextW = boxW - 124;
+  const words = visibleText.split(' ');
+  let line = '';
+  let lineY = boxY + 22;
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + ' ';
+    if (ctx.measureText(testLine).width > maxTextW && i > 0) {
+      ctx.fillText(line.trim(), textX, lineY);
+      line = words[i] + ' ';
+      lineY += 24;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), textX, lineY);
+}
+
+function drawCooldownHud(ctx, game, assets) {
+  // Espacios reservados en la esquina inferior izquierda para los Ã­conos de cooldown (ataque y magia)
+  const slotSize = 44;
+  const gap = 10;
+  const startX = 16;
+  const startY = game.height - slotSize - 16;
+
+  const slots = [
+    { icon: assets.cooldownIcons?.attack, label: 'ATK' },
+    { icon: assets.cooldownIcons?.magic, label: 'MAG' },
+  ];
+
+  slots.forEach((slot, idx) => {
+    const sx = startX + idx * (slotSize + gap);
+    ctx.fillStyle = 'rgba(20, 20, 24, 0.72)';
+    ctx.fillRect(sx, startY, slotSize, slotSize);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx, startY, slotSize, slotSize);
+
+    if (slot.icon) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(slot.icon, sx + 4, startY + 4, slotSize - 8, slotSize - 8);
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(slot.label, sx + slotSize / 2, startY + slotSize / 2);
+    }
+  });
+}
+
+function drawControlsOverlay(ctx, game) {
+  if (!game.showControlsGuide) return;
+
+  const boxW = 220;
+  const boxH = 224;
+  const boxX = game.width - boxW - 16;
+  const boxY = 54;
+
+  ctx.fillStyle = 'rgba(20, 20, 24, 0.88)';
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+  ctx.fillStyle = '#fdcb6e';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('CONTROLES (H para cerrar)', boxX + 12, boxY + 12);
+
+  const lines = [
+    'W / A / S / D - Moverse',
+    'E - Interactuar',
+    'Clic izq - Atacar',
+    'Tab - Mapa',
+    'M - Mutear audio',
+    'H - Mostrar/Ocultar guÃ­a',
+  ];
+
+  ctx.fillStyle = '#ffffff';
+  lines.forEach((txt, i) => {
+    ctx.fillText(txt, boxX + 12, boxY + 40 + i * 26);
+  });
+}
+
+export function drawGame(ctx, game, assets) {
+  if (game.screen === 'menu') {
+    drawStartMenu(ctx, game);
+    return;
+  }
+
+  const bgImg = assets.backgrounds?.[game.room];
+  if (bgImg) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bgImg, 0, 0, game.width, game.height);
+  } else {
+    ctx.fillStyle = ROOMS[game.room].color;
+    ctx.fillRect(0, 0, game.width, game.height);
+  }
+
+  if (game.room === 'top') {
+    const enemy = game.northEnemy;
+
+    if (enemy.hp > 0) {
+      // aquÃ­ para futuros implementos de sprites de jefes y sus ataques
+      ctx.fillStyle = enemy.hitFlash > 0 ? '#ffffff' : '#000000';
+      ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+
+      const barW = enemy.size;
+      const barH = 7;
+      const barY = enemy.y - 12;
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(enemy.x - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = '#ff4757';
+      ctx.fillRect(
+        enemy.x,
+        barY,
+        Math.round((enemy.hp / MAX_ENEMY_HP) * barW),
+        barH
+      );
+    }
+
+    ctx.fillStyle = '#000000';
+    game.bullets.forEach((b) => {
+      ctx.fillRect(Math.round(b.x), Math.round(b.y), b.size, b.size);
+    });
+  }
+
+  if (game.room === 'right') {
+    // aquÃ­ para futuros implementos de sprites de objetos interactuables y bloques empujables
+    const c = game.eastChest;
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(c.x - 2, c.y - 2, c.size + 4, c.size + 4);
+    ctx.fillStyle = c.isOpen ? '#2ecc71' : '#8B4513';
+    ctx.fillRect(c.x, c.y, c.size, c.size);
+  }
+
+  if (game.room === 'left' && assets.cleanSheet) {
+    ctx.imageSmoothingEnabled = false;
+    const frameW = assets.cleanSheet.width / COLS;
+    const frameH = assets.cleanSheet.height / ROWS;
+    const [r, col] = game.westNpc.sprite;
+    ctx.drawImage(
+      assets.cleanSheet,
+      col * frameW,
+      r * frameH,
+      frameW,
+      frameH,
+      game.westNpc.x,
+      game.westNpc.y,
+      game.westNpc.w,
+      game.westNpc.h
+    );
+  }
+
+  const skipFrameForFlash =
+    game.playerHitFlash > 0 && Math.floor(game.playerHitFlash / 2) % 2 === 0;
+
+  if (!skipFrameForFlash) {
+    if (assets.cleanSheet) {
+      ctx.imageSmoothingEnabled = false;
+
+      const frameW = assets.cleanSheet.width / COLS;
+      const frameH = assets.cleanSheet.height / ROWS;
+
+      const attackFrames = ATTACK_ANIMS[game.lastCardinal] || ATTACK_ANIMS.down;
+      const safeAttackIdx = Math.min(game.attackFrame, attackFrames.length - 1);
+      const walkFrames = WALK_ANIMS[game.dirKey] || WALK_ANIMS['0,1'];
+
+      const [row, col] = game.isAttacking
+        ? attackFrames[safeAttackIdx]
+        : walkFrames[game.animIndex % walkFrames.length];
+
+      ctx.drawImage(
+        assets.cleanSheet,
+        col * frameW,
+        row * frameH,
+        frameW,
+        frameH,
+        Math.round(game.x),
+        Math.round(game.y),
+        DRAW_SIZE,
+        DRAW_H
+      );
+    } else {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(game.x, game.y, DRAW_SIZE, DRAW_H);
+    }
+  }
+
+  // Barra de 7 corazones personalizados en la esquina superior derecha
+  const heartSize = 26;
+  const heartGap = 6;
+  const startHeartsX =
+    game.width - 16 - (MAX_PLAYER_HEARTS * heartSize + (MAX_PLAYER_HEARTS - 1) * heartGap);
+
+  ctx.imageSmoothingEnabled = false;
+
+  for (let i = 0; i < MAX_PLAYER_HEARTS; i++) {
+    const hx = startHeartsX + i * (heartSize + heartGap);
+    const hy = 16;
+
+    const fullThreshold = (i + 1) * 2;
+    const halfThreshold = i * 2 + 1;
+
+    let heartImg = assets.heartEmpty;
+    if (game.playerHp >= fullThreshold) {
+      heartImg = assets.heartFull;
+    } else if (game.playerHp === halfThreshold) {
+      heartImg = assets.heartHalf;
+    }
+
+    if (heartImg) {
+      ctx.drawImage(heartImg, hx, hy, heartSize, heartSize);
+    } else {
+      drawPixelHeart(ctx, hx, hy, game.playerHp >= halfThreshold);
+    }
+  }
+
+  if (game.saveNoticeTimer > 0) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+    ctx.fillRect(64, 16, 152, 34);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Partida guardada', 74, 33);
+  }
+
+  drawCooldownHud(ctx, game, assets);
+  drawControlsOverlay(ctx, game);
+
+  if (game.dialogue.active) {
+    drawDialogueBox(ctx, game, assets);
+  }
+
+  // aquÃ­ para futuros implementos de ventanas/interfaces pequeÃ±as para ver detalles de cosas
+
+  if (game.isMapOpen) {
+    drawMapOverlay(ctx, game);
+  }
+}
+
+==> state.js <==
+import {
+  DEFAULT_WIDTH,
+  DEFAULT_HEIGHT,
+  DRAW_SIZE,
+  DRAW_H,
+  MAX_PLAYER_HP,
+  MAX_ENEMY_HP,
+  SAVE_KEY,
+} from './constants';
+
+export function getCenterSpawn(width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT) {
+  return {
+    x: Math.round(width / 2 - DRAW_SIZE / 2),
+    y: Math.round(height / 2 - DRAW_H / 2),
+  };
+}
+
+export function readSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.room === 'string') return parsed;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function writeSavedGame(data) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignorar si el navegador bloquea almacenamiento local
+  }
+}
+
+export function createInitialGameState() {
+  const spawn = getCenterSpawn(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+
+  return {
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    showControlsGuide: false,
+
+    screen: 'menu', // 'menu' | 'playing'
+    menuHovered: null,
+    menuSelected: 0,
+    saveNoticeTimer: 0,
+
+    room: 'center',
+    x: spawn.x,
+    y: spawn.y,
+    playerHp: MAX_PLAYER_HP,
+    playerHitFlash: 0,
+
+    checkpoint: {
+      room: 'center',
+      x: spawn.x,
+      y: spawn.y,
+      northEnemyHp: MAX_ENEMY_HP,
+    },
+
+    isMapOpen: false,
+    hoveredMapRoom: null,
+    keys: {},
+    dirKey: '0,1',
+    lastCardinal: 'down',
+    animIndex: 1,
+    animTimer: 0,
+    isMoving: false,
+    isAttacking: false,
+    attackHasHit: false,
+    attackFrame: 0,
+    attackTimer: 0,
+
+    northEnemy: {
+      x: Math.round(DEFAULT_WIDTH / 2 - DRAW_SIZE / 2),
+      y: 55,
+      size: DRAW_SIZE,
+      hp: MAX_ENEMY_HP,
+      hitFlash: 0,
+      shootTimer: 0,
+    },
+    bullets: [],
+
+    eastChest: {
+      x: Math.round(DEFAULT_WIDTH * 0.68),
+      y: Math.round(DEFAULT_HEIGHT / 2 - 24),
+      size: 48,
+      isOpen: false,
+    },
+
+    westNpc: {
+      x: Math.round(DEFAULT_WIDTH * 0.22),
+      y: Math.round(DEFAULT_HEIGHT / 2 - DRAW_H / 2),
+      w: DRAW_SIZE,
+      h: DRAW_H,
+      sprite: [4, 0],
+    },
+
+    dialogue: {
+      active: false,
+      lines: [],
+      lineIndex: 0,
+      charIndex: 0,
+      timer: 0,
+    },
+
+    // aquÃ­ para futuros implementos de cooldown de ataque y magia (attackCooldown: 0, magicCooldown: 0)
+    // aquÃ­ para futuros implementos de estado de bloques empujables para puzzles
+    // aquÃ­ para futuros implementos de estado de interfaz pequeÃ±a para ver detalles de cosas
+  };
+}
+
+export function saveCheckpointAtSouth(game) {
+  const saveData = {
+    room: 'bottom',
+    x: game.x,
+    y: game.y,
+    northEnemyHp: game.northEnemy.hp,
+  };
+  writeSavedGame(saveData);
+  game.checkpoint = { ...saveData };
+  game.saveNoticeTimer = 90;
+}
+
+export function startNewGame(game, setIsPlaying) {
+  const spawn = getCenterSpawn(game.width, game.height);
+  game.room = 'center';
+  game.x = spawn.x;
+  game.y = spawn.y;
+  game.playerHp = MAX_PLAYER_HP;
+  game.playerHitFlash = 0;
+  game.dirKey = '0,1';
+  game.lastCardinal = 'down';
+  game.isAttacking = false;
+  game.attackHasHit = false;
+  game.attackFrame = 0;
+  game.attackTimer = 0;
+  game.isMapOpen = false;
+  game.dialogue.active = false;
+  game.keys = {};
+  game.bullets = [];
+  game.northEnemy.hp = MAX_ENEMY_HP;
+  game.northEnemy.hitFlash = 0;
+  game.northEnemy.shootTimer = 0;
+  game.eastChest.isOpen = false;
+  game.checkpoint = {
+    room: 'center',
+    x: spawn.x,
+    y: spawn.y,
+    northEnemyHp: MAX_ENEMY_HP,
+  };
+  game.screen = 'playing';
+  setIsPlaying(true);
+}
+
+export function loadSavedGame(game, setIsPlaying) {
+  const saved = readSavedGame();
+  if (!saved) return;
+
+  const spawn = getCenterSpawn(game.width, game.height);
+  game.room = saved.room;
+  game.x = Math.min(saved.x ?? spawn.x, Math.max(0, game.width - DRAW_SIZE));
+  game.y = Math.min(saved.y ?? spawn.y, Math.max(0, game.height - DRAW_H));
+  game.playerHp = MAX_PLAYER_HP;
+  game.playerHitFlash = 0;
+  game.dirKey = '0,1';
+  game.lastCardinal = 'down';
+  game.isAttacking = false;
+  game.attackHasHit = false;
+  game.attackFrame = 0;
+  game.attackTimer = 0;
+  game.isMapOpen = false;
+  game.dialogue.active = false;
+  game.keys = {};
+  game.bullets = [];
+  game.northEnemy.hp =
+    typeof saved.northEnemyHp === 'number' ? saved.northEnemyHp : MAX_ENEMY_HP;
+  game.northEnemy.hitFlash = 0;
+  game.northEnemy.shootTimer = 0;
+  game.checkpoint = { ...saved };
+  game.screen = 'playing';
+  setIsPlaying(true);
+}
+
+export function respawnAtLastCheckpoint(game) {
+  const cp = readSavedGame() || game.checkpoint;
+  game.room = cp.room;
+  game.x = Math.min(cp.x, Math.max(0, game.width - DRAW_SIZE));
+  game.y = Math.min(cp.y, Math.max(0, game.height - DRAW_H));
+  game.playerHp = MAX_PLAYER_HP;
+  game.playerHitFlash = 0;
+  game.dirKey = '0,1';
+  game.lastCardinal = 'down';
+  game.isAttacking = false;
+  game.attackHasHit = false;
+  game.attackFrame = 0;
+  game.attackTimer = 0;
+  game.isMapOpen = false;
+  game.dialogue.active = false;
+  game.keys = {};
+  game.bullets = [];
+  game.northEnemy.hp =
+    typeof cp.northEnemyHp === 'number' ? cp.northEnemyHp : MAX_ENEMY_HP;
+  game.northEnemy.hitFlash = 0;
+  game.northEnemy.shootTimer = 0;
+}
+
+export function teleportToRoom(game, targetRoom) {
+  const spawn = getCenterSpawn(game.width, game.height);
+  game.room = targetRoom;
+  game.x = spawn.x;
+  game.y = spawn.y;
+  game.bullets = [];
+  game.isAttacking = false;
+  game.attackFrame = 0;
+  game.isMapOpen = false;
+  game.hoveredMapRoom = null;
+
+  if (targetRoom === 'bottom') {
+    saveCheckpointAtSouth(game);
+  }
+}
+
+export function resizeGameScreen(game, newWidth, newHeight) {
+  game.width = newWidth;
+  game.height = newHeight;
+
+  game.x = Math.max(0, Math.min(game.x, newWidth - DRAW_SIZE));
+  game.y = Math.max(0, Math.min(game.y, newHeight - DRAW_H));
+
+  game.northEnemy.x = Math.round(newWidth / 2 - DRAW_SIZE / 2);
+  game.eastChest.x = Math.round(newWidth * 0.68);
+  game.eastChest.y = Math.round(newHeight / 2 - 24);
+  game.westNpc.x = Math.round(newWidth * 0.22);
+  game.westNpc.y = Math.round(newHeight / 2 - DRAW_H / 2);
+}
+
+export function returnToMenu(game, setIsPlaying) {
+  game.screen = 'menu';
+  game.isMapOpen = false;
+  game.dialogue.active = false;
+  game.isAttacking = false;
+  game.attackFrame = 0;
+  game.keys = {};
+  setIsPlaying(false);
+}
+
