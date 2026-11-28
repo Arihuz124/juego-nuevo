@@ -4,14 +4,18 @@ import {
   SPEED,
   WALK_ANIMS,
   ATTACK_ANIMS,
+  getRoomDoors,
+  getHousePortal,
 } from './constants';
 import {
   rectsOverlap,
   hitsRoomObstacle,
   getSwordHitbox,
   getEnemyBox,
+  getPlayerBox,
+  isDoorUnlocked,
 } from './physics';
-import { saveCheckpointAtSouth } from './state';
+import { saveCheckpointAtSouth, startAutoWalk } from './state';
 
 export function updatePlayer(game) {
   if (game.isAttacking) {
@@ -48,10 +52,20 @@ export function updatePlayer(game) {
   let dx = 0;
   let dy = 0;
 
-  if (game.keys['arrowup'] || game.keys['w']) dy -= 1;
-  if (game.keys['arrowdown'] || game.keys['s']) dy += 1;
-  if (game.keys['arrowleft'] || game.keys['a']) dx -= 1;
-  if (game.keys['arrowright'] || game.keys['d']) dx += 1;
+  // Si está en caminata automática (al entrar/salir de puerta o casa), el personaje se mueve solo
+  if (game.autoWalk?.active) {
+    dx = game.autoWalk.dx;
+    dy = game.autoWalk.dy;
+    game.autoWalk.frames -= 1;
+    if (game.autoWalk.frames <= 0) {
+      game.autoWalk.active = false;
+    }
+  } else {
+    if (game.keys['arrowup'] || game.keys['w']) dy -= 1;
+    if (game.keys['arrowdown'] || game.keys['s']) dy += 1;
+    if (game.keys['arrowleft'] || game.keys['a']) dx -= 1;
+    if (game.keys['arrowright'] || game.keys['d']) dx += 1;
+  }
 
   game.isMoving = dx !== 0 || dy !== 0;
 
@@ -95,55 +109,71 @@ export function updatePlayer(game) {
 
   const maxPosX = game.width - DRAW_SIZE;
   const maxPosY = game.height - DRAW_H;
-  const offset = 6;
 
-  if (game.room === 'center') {
-    if (game.y <= 0) {
-      game.room = 'top';
-      game.y = maxPosY - offset;
-    } else if (game.y >= maxPosY) {
-      game.room = 'bottom';
-      game.y = offset;
-      saveCheckpointAtSouth(game);
-    } else if (game.x <= 0) {
-      game.room = 'left';
-      game.x = maxPosX - offset;
-    } else if (game.x >= maxPosX) {
-      game.room = 'right';
-      game.x = offset;
+  // Mantener dentro de los límites de la pantalla (ya no se cruza por todo el borde)
+  if (game.x < 0) game.x = 0;
+  if (game.x > maxPosX) game.x = maxPosX;
+  if (game.y < 0) game.y = 0;
+  if (game.y > maxPosY) game.y = maxPosY;
+
+  // Durante la caminata automática no volvemos a disparar portales ni puertas
+  if (game.autoWalk?.active) return;
+
+  const pBox = getPlayerBox(game);
+
+  // 1. Revisar entrada o salida de casa (cuadro negro)
+  const housePortal = getHousePortal(game.room, game.width, game.height);
+  if (housePortal && rectsOverlap(pBox, housePortal)) {
+    const targetRoom = housePortal.targetRoom;
+    game.room = targetRoom;
+    game.bullets = [];
+
+    const destPortal = getHousePortal(targetRoom, game.width, game.height);
+    if (housePortal.type === 'enter' && destPortal) {
+      // Aparece frente a la salida interior y camina hacia arriba
+      game.x = Math.round(destPortal.x + destPortal.w / 2 - DRAW_SIZE / 2);
+      game.y = destPortal.y - DRAW_H - 12;
+      startAutoWalk(game, 0, -1, 14);
+    } else if (housePortal.type === 'exit' && destPortal) {
+      // Aparece frente a la puerta de la casa en el exterior y camina hacia abajo
+      game.x = Math.round(destPortal.x + destPortal.w / 2 - DRAW_SIZE / 2);
+      game.y = destPortal.y + destPortal.h + 12;
+      startAutoWalk(game, 0, 1, 14);
     }
-  } else if (game.room === 'top') {
-    if (game.y >= maxPosY) {
-      game.room = 'center';
-      game.y = offset;
+    return;
+  }
+
+  // 2. Revisar puertas hacia otros cuartos exteriores
+  const doors = getRoomDoors(game.room, game.width, game.height);
+  for (const door of doors) {
+    if (rectsOverlap(pBox, door) && isDoorUnlocked(game, door)) {
+      game.room = door.targetRoom;
       game.bullets = [];
+      game.visitedRooms[door.targetRoom] = true;
+      if (door.connectorId) {
+        game.visitedConnectors[door.connectorId] = true;
+      }
+
+      if (door.side === 'right') {
+        game.x = 34;
+        game.y = Math.round(game.height / 2 - DRAW_H / 2);
+      } else if (door.side === 'left') {
+        game.x = maxPosX - 34;
+        game.y = Math.round(game.height / 2 - DRAW_H / 2);
+      } else if (door.side === 'top') {
+        game.x = Math.round(game.width / 2 - DRAW_SIZE / 2);
+        game.y = maxPosY - 34;
+      } else if (door.side === 'bottom') {
+        game.x = Math.round(game.width / 2 - DRAW_SIZE / 2);
+        game.y = 34;
+      }
+
+      if (door.targetRoom === 'bottom') {
+        saveCheckpointAtSouth(game);
+      }
+
+      startAutoWalk(game, door.walkDir[0], door.walkDir[1], 14);
+      return;
     }
-    if (game.y < 0) game.y = 0;
-    if (game.x < 0) game.x = 0;
-    if (game.x > maxPosX) game.x = maxPosX;
-  } else if (game.room === 'bottom') {
-    if (game.y <= 0) {
-      game.room = 'center';
-      game.y = maxPosY - offset;
-    }
-    if (game.y > maxPosY) game.y = maxPosY;
-    if (game.x < 0) game.x = 0;
-    if (game.x > maxPosX) game.x = maxPosX;
-  } else if (game.room === 'left') {
-    if (game.x >= maxPosX) {
-      game.room = 'center';
-      game.x = offset;
-    }
-    if (game.x < 0) game.x = 0;
-    if (game.y < 0) game.y = 0;
-    if (game.y > maxPosY) game.y = maxPosY;
-  } else if (game.room === 'right') {
-    if (game.x <= 0) {
-      game.room = 'center';
-      game.x = maxPosX - offset;
-    }
-    if (game.x > maxPosX) game.x = maxPosX;
-    if (game.y < 0) game.y = 0;
-    if (game.y > maxPosY) game.y = maxPosY;
   }
 }

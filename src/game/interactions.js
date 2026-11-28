@@ -3,6 +3,7 @@ import {
   getPlayerBox,
   getChestBox,
   getNpcBox,
+  getSwitchBox,
 } from './physics';
 
 export function advanceDialogue(game) {
@@ -35,6 +36,24 @@ export function handleInteractionKey(game) {
   if (game.room === 'right' && isNear(getPlayerBox(game), getChestBox(game))) {
     game.eastChest.isOpen = !game.eastChest.isOpen;
     // aquí para futuros implementos de sonido al abrir/cerrar cofre
+    return true;
+  }
+
+  if (game.room === 'right' && isNear(getPlayerBox(game), getSwitchBox(game))) {
+    game.rightSwitchPressed = !game.rightSwitchPressed;
+    game.dialogue = {
+      active: true,
+      lines: [
+        game.rightSwitchPressed
+          ? 'Presionaste el interruptor. Se escuchó abrir la puerta de la derecha.'
+          : 'Desactivaste el interruptor. La puerta de la derecha se cerró.',
+      ],
+      lineIndex: 0,
+      charIndex: 0,
+      timer: 0,
+    };
+    game.keys = {};
+    game.isMoving = false;
     return true;
   }
 

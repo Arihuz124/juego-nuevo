@@ -548,7 +548,7 @@ export default function App() {
       const { rooms: mapRooms } = getMapLayout(game.width, game.height);
       let found = null;
       for (const [roomKey, rect] of Object.entries(mapRooms)) {
-        if (pointInRect(mx, my, rect)) {
+        if (game.visitedRooms?.[roomKey] && pointInRect(mx, my, rect)) {
           found = roomKey;
           break;
         }
@@ -581,7 +581,7 @@ export default function App() {
       if (game.isMapOpen) {
         const { rooms: mapRooms } = getMapLayout(game.width, game.height);
         for (const [roomKey, rect] of Object.entries(mapRooms)) {
-          if (pointInRect(mx, my, rect)) {
+          if (game.visitedRooms?.[roomKey] && pointInRect(mx, my, rect)) {
             teleportToRoom(game, roomKey);
             return;
           }
@@ -1140,13 +1140,93 @@ export const ATTACK_ANIMS = {
 };
 
 export const ROOMS = {
-  // Cuando tengas el paisaje de cada cuarto, cambia bgSrc: null por ej. './assets/backgrounds/center.png'
-  center: { color: '#d63031', bgSrc: null }, // Rojo
-  top:    { color: '#00b894', bgSrc: null }, // Verde (Norte)
-  bottom: { color: '#0984e3', bgSrc: null }, // Azul (Sur - Punto de guardado)
-  left:   { color: '#6c5ce7', bgSrc: null }, // Morado (Oeste)
-  right:  { color: '#fdcb6e', bgSrc: null }, // Amarillo (Este)
+  // Cuartos exteriores (segÃºn el nuevo mapa)
+  left:      { color: '#6c5ce7', bgSrc: null, mapRoom: 'left' },      // Extremo izquierdo (Inicio)
+  center:    { color: '#d63031', bgSrc: null, mapRoom: 'center' },    // Cruce central
+  top:       { color: '#00b894', bgSrc: null, mapRoom: 'top' },       // Norte
+  bottom:    { color: '#0984e3', bgSrc: null, mapRoom: 'bottom' },    // Sur (Punto de guardado)
+  right:     { color: '#fdcb6e', bgSrc: null, mapRoom: 'right' },     // Este 1 (Interruptor)
+  far_right: { color: '#e17055', bgSrc: null, mapRoom: 'far_right' }, // Extremo derecho
+
+  // Interiores de casas (sub-cuartos: mantienen iluminada su zona exterior en el mapa)
+  left_house:      { color: '#4b3f9e', bgSrc: null, mapRoom: 'left',      isInterior: true },
+  center_house:    { color: '#8c1d1e', bgSrc: null, mapRoom: 'center',    isInterior: true },
+  top_house:       { color: '#00735c', bgSrc: null, mapRoom: 'top',       isInterior: true },
+  bottom_house:    { color: '#06528c', bgSrc: null, mapRoom: 'bottom',    isInterior: true },
+  right_house:     { color: '#b38b36', bgSrc: null, mapRoom: 'right',     isInterior: true },
+  far_right_house: { color: '#9c4732', bgSrc: null, mapRoom: 'far_right', isInterior: true },
 };
+
+// Puertas especÃ­ficas entre cuartos exteriores (ya no se cruza por todo el borde)
+export function getRoomDoors(room, width, height) {
+  const cx = Math.round(width / 2);
+  const cy = Math.round(height / 2);
+  const doorW = 84;
+  const doorH = 26;
+
+  const doorsByRoom = {
+    left: [
+      { id: 'left_to_center', side: 'right', x: width - doorH, y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'center', walkDir: [1, 0], connectorId: 'left-center' },
+    ],
+    center: [
+      { id: 'center_to_left',   side: 'left',   x: 0,              y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'left',   walkDir: [-1, 0], connectorId: 'left-center' },
+      { id: 'center_to_top',    side: 'top',    x: cx - doorW / 2, y: 0,              w: doorW, h: doorH, targetRoom: 'top',    walkDir: [0, -1], connectorId: 'center-top' },
+      { id: 'center_to_bottom', side: 'bottom', x: cx - doorW / 2, y: height - doorH, w: doorW, h: doorH, targetRoom: 'bottom', walkDir: [0, 1],  connectorId: 'center-bottom' },
+      { id: 'center_to_right',  side: 'right',  x: width - doorH,  y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'right',  walkDir: [1, 0],  connectorId: 'center-right' },
+    ],
+    top: [
+      { id: 'top_to_center', side: 'bottom', x: cx - doorW / 2, y: height - doorH, w: doorW, h: doorH, targetRoom: 'center', walkDir: [0, 1], connectorId: 'center-top' },
+    ],
+    bottom: [
+      { id: 'bottom_to_center', side: 'top', x: cx - doorW / 2, y: 0, w: doorW, h: doorH, targetRoom: 'center', walkDir: [0, -1], connectorId: 'center-bottom' },
+    ],
+    right: [
+      { id: 'right_to_center',    side: 'left',  x: 0,             y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'center',    walkDir: [-1, 0], connectorId: 'center-right' },
+      // Puerta condicionada: requiere presionar el botÃ³n del cuarto derecho (aquÃ­ a futuro tambiÃ©n condiciÃ³n de jefe)
+      { id: 'right_to_far_right', side: 'right', x: width - doorH, y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'far_right', walkDir: [1, 0],  connectorId: 'right-far_right', requiresSwitch: true },
+    ],
+    far_right: [
+      { id: 'far_right_to_right', side: 'left', x: 0, y: cy - doorW / 2, w: doorH, h: doorW, targetRoom: 'right', walkDir: [-1, 0], connectorId: 'right-far_right' },
+    ],
+  };
+
+  return doorsByRoom[room] || [];
+}
+
+// Cuadro negro de entrada/salida de casa en cada cuarto
+export function getHousePortal(room, width, height) {
+  const cx = Math.round(width / 2);
+  const portalW = 54;
+  const portalH = 44;
+
+  // Si es un cuarto exterior, devuelve la entrada a su casa interior
+  if (ROOMS[room] && !ROOMS[room].isInterior) {
+    return {
+      type: 'enter',
+      x: Math.round(width * 0.24),
+      y: 72,
+      w: portalW,
+      h: portalH,
+      targetRoom: `${room}_house`,
+      walkDir: [0, -1],
+    };
+  }
+
+  // Si es un interior, devuelve la salida abajo al centro hacia el cuarto exterior
+  if (ROOMS[room]?.isInterior) {
+    return {
+      type: 'exit',
+      x: cx - portalW / 2,
+      y: height - portalH - 12,
+      w: portalW,
+      h: portalH,
+      targetRoom: ROOMS[room].mapRoom,
+      walkDir: [0, 1],
+    };
+  }
+
+  return null;
+}
 
 export function getMenuButtons(width, height) {
   const cx = Math.round(width / 2);
@@ -1160,22 +1240,29 @@ export function getMenuButtons(width, height) {
 }
 
 export function getMapLayout(width, height) {
-  const cx = Math.round(width / 2);
+  const cx = Math.round(width / 2) - 55;
   const cy = Math.round(height / 2);
+  const size = 76;
+  const gap = 28;
+  const step = size + gap;
 
   const rooms = {
-    center: { x: cx - 55,  y: cy - 55,  w: 110, h: 110 },
-    top:    { x: cx - 55,  y: cy - 167, w: 110, h: 76 },
-    bottom: { x: cx - 55,  y: cy + 91,  w: 110, h: 76 },
-    left:   { x: cx - 167, y: cy - 55,  w: 76,  h: 110 },
-    right:  { x: cx + 91,  y: cy - 55,  w: 76,  h: 110 },
+    left:      { x: cx - step,     y: cy - size / 2,        w: size, h: size },
+    center:    { x: cx,            y: cy - size / 2,        w: size, h: size },
+    top:       { x: cx,            y: cy - size / 2 - step, w: size, h: size },
+    bottom:    { x: cx,            y: cy - size / 2 + step, w: size, h: size },
+    right:     { x: cx + step,     y: cy - size / 2,        w: size, h: size },
+    far_right: { x: cx + step * 2, y: cy - size / 2,        w: size, h: size },
   };
 
   const connectors = [
-    { x: cx - 14, y: cy - 91, w: 28, h: 36 },
-    { x: cx - 14, y: cy + 55, w: 28, h: 36 },
-    { x: cx - 91, y: cy - 14, w: 36, h: 28 },
-    { x: cx + 55, y: cy - 14, w: 36, h: 28 },
+    { id: 'left-center',     x: cx - gap,            y: cy - 12,        w: gap, h: 24 },
+    { id: 'center-top',      x: cx + size / 2 - 12,  y: cy - size / 2 - gap, w: 24,  h: gap },
+    { id: 'center-bottom',   x: cx + size / 2 - 12,  y: cy + size / 2,  w: 24,  h: gap },
+    { id: 'center-right',    x: cx + size,           y: cy - 12,        w: gap, h: 24 },
+    { id: 'right-far_right', x: cx + size + step,    y: cy - 12,        w: gap, h: 24 },
+    // Pasillo derecho saliendo de far_right para futura expansiÃ³n del mapa
+    { id: 'far_right-next',  x: cx + size + step * 2, y: cy - 12,       w: gap, h: 24, lockedFuture: true },
   ];
 
   return { rooms, connectors };
@@ -1350,14 +1437,18 @@ import {
   SPEED,
   WALK_ANIMS,
   ATTACK_ANIMS,
+  getRoomDoors,
+  getHousePortal,
 } from './constants';
 import {
   rectsOverlap,
   hitsRoomObstacle,
   getSwordHitbox,
   getEnemyBox,
+  getPlayerBox,
+  isDoorUnlocked,
 } from './physics';
-import { saveCheckpointAtSouth } from './state';
+import { saveCheckpointAtSouth, startAutoWalk } from './state';
 
 export function updatePlayer(game) {
   if (game.isAttacking) {
@@ -1394,10 +1485,20 @@ export function updatePlayer(game) {
   let dx = 0;
   let dy = 0;
 
-  if (game.keys['arrowup'] || game.keys['w']) dy -= 1;
-  if (game.keys['arrowdown'] || game.keys['s']) dy += 1;
-  if (game.keys['arrowleft'] || game.keys['a']) dx -= 1;
-  if (game.keys['arrowright'] || game.keys['d']) dx += 1;
+  // Si estÃ¡ en caminata automÃ¡tica (al entrar/salir de puerta o casa), el personaje se mueve solo
+  if (game.autoWalk?.active) {
+    dx = game.autoWalk.dx;
+    dy = game.autoWalk.dy;
+    game.autoWalk.frames -= 1;
+    if (game.autoWalk.frames <= 0) {
+      game.autoWalk.active = false;
+    }
+  } else {
+    if (game.keys['arrowup'] || game.keys['w']) dy -= 1;
+    if (game.keys['arrowdown'] || game.keys['s']) dy += 1;
+    if (game.keys['arrowleft'] || game.keys['a']) dx -= 1;
+    if (game.keys['arrowright'] || game.keys['d']) dx += 1;
+  }
 
   game.isMoving = dx !== 0 || dy !== 0;
 
@@ -1441,56 +1542,72 @@ export function updatePlayer(game) {
 
   const maxPosX = game.width - DRAW_SIZE;
   const maxPosY = game.height - DRAW_H;
-  const offset = 6;
 
-  if (game.room === 'center') {
-    if (game.y <= 0) {
-      game.room = 'top';
-      game.y = maxPosY - offset;
-    } else if (game.y >= maxPosY) {
-      game.room = 'bottom';
-      game.y = offset;
-      saveCheckpointAtSouth(game);
-    } else if (game.x <= 0) {
-      game.room = 'left';
-      game.x = maxPosX - offset;
-    } else if (game.x >= maxPosX) {
-      game.room = 'right';
-      game.x = offset;
+  // Mantener dentro de los lÃ­mites de la pantalla (ya no se cruza por todo el borde)
+  if (game.x < 0) game.x = 0;
+  if (game.x > maxPosX) game.x = maxPosX;
+  if (game.y < 0) game.y = 0;
+  if (game.y > maxPosY) game.y = maxPosY;
+
+  // Durante la caminata automÃ¡tica no volvemos a disparar portales ni puertas
+  if (game.autoWalk?.active) return;
+
+  const pBox = getPlayerBox(game);
+
+  // 1. Revisar entrada o salida de casa (cuadro negro)
+  const housePortal = getHousePortal(game.room, game.width, game.height);
+  if (housePortal && rectsOverlap(pBox, housePortal)) {
+    const targetRoom = housePortal.targetRoom;
+    game.room = targetRoom;
+    game.bullets = [];
+
+    const destPortal = getHousePortal(targetRoom, game.width, game.height);
+    if (housePortal.type === 'enter' && destPortal) {
+      // Aparece frente a la salida interior y camina hacia arriba
+      game.x = Math.round(destPortal.x + destPortal.w / 2 - DRAW_SIZE / 2);
+      game.y = destPortal.y - DRAW_H - 12;
+      startAutoWalk(game, 0, -1, 14);
+    } else if (housePortal.type === 'exit' && destPortal) {
+      // Aparece frente a la puerta de la casa en el exterior y camina hacia abajo
+      game.x = Math.round(destPortal.x + destPortal.w / 2 - DRAW_SIZE / 2);
+      game.y = destPortal.y + destPortal.h + 12;
+      startAutoWalk(game, 0, 1, 14);
     }
-  } else if (game.room === 'top') {
-    if (game.y >= maxPosY) {
-      game.room = 'center';
-      game.y = offset;
+    return;
+  }
+
+  // 2. Revisar puertas hacia otros cuartos exteriores
+  const doors = getRoomDoors(game.room, game.width, game.height);
+  for (const door of doors) {
+    if (rectsOverlap(pBox, door) && isDoorUnlocked(game, door)) {
+      game.room = door.targetRoom;
       game.bullets = [];
+      game.visitedRooms[door.targetRoom] = true;
+      if (door.connectorId) {
+        game.visitedConnectors[door.connectorId] = true;
+      }
+
+      if (door.side === 'right') {
+        game.x = 34;
+        game.y = Math.round(game.height / 2 - DRAW_H / 2);
+      } else if (door.side === 'left') {
+        game.x = maxPosX - 34;
+        game.y = Math.round(game.height / 2 - DRAW_H / 2);
+      } else if (door.side === 'top') {
+        game.x = Math.round(game.width / 2 - DRAW_SIZE / 2);
+        game.y = maxPosY - 34;
+      } else if (door.side === 'bottom') {
+        game.x = Math.round(game.width / 2 - DRAW_SIZE / 2);
+        game.y = 34;
+      }
+
+      if (door.targetRoom === 'bottom') {
+        saveCheckpointAtSouth(game);
+      }
+
+      startAutoWalk(game, door.walkDir[0], door.walkDir[1], 14);
+      return;
     }
-    if (game.y < 0) game.y = 0;
-    if (game.x < 0) game.x = 0;
-    if (game.x > maxPosX) game.x = maxPosX;
-  } else if (game.room === 'bottom') {
-    if (game.y <= 0) {
-      game.room = 'center';
-      game.y = maxPosY - offset;
-    }
-    if (game.y > maxPosY) game.y = maxPosY;
-    if (game.x < 0) game.x = 0;
-    if (game.x > maxPosX) game.x = maxPosX;
-  } else if (game.room === 'left') {
-    if (game.x >= maxPosX) {
-      game.room = 'center';
-      game.x = offset;
-    }
-    if (game.x < 0) game.x = 0;
-    if (game.y < 0) game.y = 0;
-    if (game.y > maxPosY) game.y = maxPosY;
-  } else if (game.room === 'right') {
-    if (game.x <= 0) {
-      game.room = 'center';
-      game.x = maxPosX - offset;
-    }
-    if (game.x > maxPosX) game.x = maxPosX;
-    if (game.y < 0) game.y = 0;
-    if (game.y > maxPosY) game.y = maxPosY;
   }
 }
 
@@ -1507,8 +1624,11 @@ import {
   ROOMS,
   getMenuButtons,
   getMapLayout,
+  getRoomDoors,
+  getHousePortal,
 } from './constants';
 import { readSavedGame } from './state';
+import { isDoorUnlocked } from './physics';
 
 function drawPixelHeart(ctx, x, y, filled) {
   const pattern = [
@@ -1591,7 +1711,7 @@ function drawStartMenu(ctx, game) {
 }
 
 function drawMapOverlay(ctx, game) {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
   ctx.fillRect(0, 0, game.width, game.height);
 
   const { rooms: mapRooms, connectors: mapConnectors } = getMapLayout(
@@ -1599,13 +1719,27 @@ function drawMapOverlay(ctx, game) {
     game.height
   );
 
-  ctx.fillStyle = '#000000';
+  // Si estÃ¡s dentro de una casa (ej. left_house), ilumina su cuarto exterior (left)
+  const activeMapRoom = ROOMS[game.room]?.mapRoom || game.room;
+
+  // Pasillos entre cuartos (negros si no se han cruzado)
   mapConnectors.forEach((conn) => {
+    const isRevealed = Boolean(game.visitedConnectors?.[conn.id]);
+    ctx.fillStyle = isRevealed ? '#3d3d3d' : '#000000';
     ctx.fillRect(conn.x, conn.y, conn.w, conn.h);
   });
 
+  // Cuartos (niebla de guerra negra si aÃºn no han sido visitados)
   for (const [roomKey, rect] of Object.entries(mapRooms)) {
-    const isCurrent = game.room === roomKey;
+    const isVisited = Boolean(game.visitedRooms?.[roomKey]);
+
+    if (!isVisited) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      continue;
+    }
+
+    const isCurrent = activeMapRoom === roomKey;
     const isHovered = game.hoveredMapRoom === roomKey;
 
     ctx.fillStyle = '#5c0d0d';
@@ -1760,6 +1894,28 @@ export function drawGame(ctx, game, assets) {
   } else {
     ctx.fillStyle = ROOMS[game.room].color;
     ctx.fillRect(0, 0, game.width, game.height);
+  }
+
+  // 1. Dibujar puertas entre cuartos (abiertas o bloqueadas por condiciÃ³n)
+  const doors = getRoomDoors(game.room, game.width, game.height);
+  for (const door of doors) {
+    const unlocked = isDoorUnlocked(game, door);
+    ctx.fillStyle = unlocked ? '#111111' : '#2d3436';
+    ctx.fillRect(door.x, door.y, door.w, door.h);
+
+    ctx.strokeStyle = unlocked ? '#55efc4' : '#ff4757';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(door.x + 1.5, door.y + 1.5, door.w - 3, door.h - 3);
+  }
+
+  // 2. Dibujar cuadro negro de entrada o salida de casa
+  const housePortal = getHousePortal(game.room, game.width, game.height);
+  if (housePortal) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(housePortal.x, housePortal.y, housePortal.w, housePortal.h);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(housePortal.x, housePortal.y, housePortal.w, housePortal.h);
   }
 
   if (game.room === 'top') {
@@ -1956,17 +2112,28 @@ export function createInitialGameState() {
     menuSelected: 0,
     saveNoticeTimer: 0,
 
-    room: 'center',
+    room: 'left',
     x: spawn.x,
     y: spawn.y,
     playerHp: MAX_PLAYER_HP,
     playerHitFlash: 0,
 
+    visitedRooms: { left: true },
+    visitedConnectors: {},
+    rightSwitchPressed: false,
+    autoWalk: {
+      active: false,
+      dx: 0,
+      dy: 0,
+      frames: 0,
+    },
+
     checkpoint: {
-      room: 'center',
+      room: 'left',
       x: spawn.x,
       y: spawn.y,
       northEnemyHp: MAX_ENEMY_HP,
+      rightSwitchPressed: false,
     },
 
     isMapOpen: false,
@@ -1999,6 +2166,12 @@ export function createInitialGameState() {
       isOpen: false,
     },
 
+    rightSwitch: {
+      x: Math.round(DEFAULT_WIDTH * 0.52),
+      y: Math.round(DEFAULT_HEIGHT * 0.28),
+      size: 36,
+    },
+
     westNpc: {
       x: Math.round(DEFAULT_WIDTH * 0.22),
       y: Math.round(DEFAULT_HEIGHT / 2 - DRAW_H / 2),
@@ -2021,12 +2194,26 @@ export function createInitialGameState() {
   };
 }
 
+export function startAutoWalk(game, dx, dy, frames = 16) {
+  game.keys = {};
+  game.isMoving = true;
+  game.autoWalk = {
+    active: true,
+    dx,
+    dy,
+    frames,
+  };
+}
+
 export function saveCheckpointAtSouth(game) {
   const saveData = {
     room: 'bottom',
     x: game.x,
     y: game.y,
     northEnemyHp: game.northEnemy.hp,
+    rightSwitchPressed: game.rightSwitchPressed,
+    visitedRooms: { ...game.visitedRooms },
+    visitedConnectors: { ...game.visitedConnectors },
   };
   writeSavedGame(saveData);
   game.checkpoint = { ...saveData };
@@ -2035,13 +2222,13 @@ export function saveCheckpointAtSouth(game) {
 
 export function startNewGame(game, setIsPlaying) {
   const spawn = getCenterSpawn(game.width, game.height);
-  game.room = 'center';
+  game.room = 'left';
   game.x = spawn.x;
   game.y = spawn.y;
   game.playerHp = MAX_PLAYER_HP;
   game.playerHitFlash = 0;
-  game.dirKey = '0,1';
-  game.lastCardinal = 'down';
+  game.dirKey = '1,0';
+  game.lastCardinal = 'right';
   game.isAttacking = false;
   game.attackHasHit = false;
   game.attackFrame = 0;
@@ -2054,14 +2241,19 @@ export function startNewGame(game, setIsPlaying) {
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
   game.eastChest.isOpen = false;
+  game.rightSwitchPressed = false;
+  game.visitedRooms = { left: true };
+  game.visitedConnectors = {};
   game.checkpoint = {
-    room: 'center',
+    room: 'left',
     x: spawn.x,
     y: spawn.y,
     northEnemyHp: MAX_ENEMY_HP,
+    rightSwitchPressed: false,
   };
   game.screen = 'playing';
   setIsPlaying(true);
+  startAutoWalk(game, 1, 0, 14);
 }
 
 export function loadSavedGame(game, setIsPlaying) {
@@ -2088,6 +2280,10 @@ export function loadSavedGame(game, setIsPlaying) {
     typeof saved.northEnemyHp === 'number' ? saved.northEnemyHp : MAX_ENEMY_HP;
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
+  game.rightSwitchPressed = Boolean(saved.rightSwitchPressed);
+  game.visitedRooms = saved.visitedRooms || { left: true, [saved.room]: true };
+  game.visitedConnectors = saved.visitedConnectors || {};
+  game.autoWalk = { active: false, dx: 0, dy: 0, frames: 0 };
   game.checkpoint = { ...saved };
   game.screen = 'playing';
   setIsPlaying(true);
@@ -2114,18 +2310,24 @@ export function respawnAtLastCheckpoint(game) {
     typeof cp.northEnemyHp === 'number' ? cp.northEnemyHp : MAX_ENEMY_HP;
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
+  game.rightSwitchPressed = Boolean(cp.rightSwitchPressed);
+  game.autoWalk = { active: false, dx: 0, dy: 0, frames: 0 };
 }
 
 export function teleportToRoom(game, targetRoom) {
   const spawn = getCenterSpawn(game.width, game.height);
   game.room = targetRoom;
+  game.visitedRooms[targetRoom] = true;
   game.x = spawn.x;
-  game.y = spawn.y;
+  game.y = spawn.y - 24;
   game.bullets = [];
   game.isAttacking = false;
   game.attackFrame = 0;
   game.isMapOpen = false;
   game.hoveredMapRoom = null;
+
+  // Al teletransportarse desde el mapa, da unos pasos hacia abajo automÃ¡ticamente
+  startAutoWalk(game, 0, 1, 14);
 
   if (targetRoom === 'bottom') {
     saveCheckpointAtSouth(game);
@@ -2142,6 +2344,8 @@ export function resizeGameScreen(game, newWidth, newHeight) {
   game.northEnemy.x = Math.round(newWidth / 2 - DRAW_SIZE / 2);
   game.eastChest.x = Math.round(newWidth * 0.68);
   game.eastChest.y = Math.round(newHeight / 2 - 24);
+  game.rightSwitch.x = Math.round(newWidth * 0.52);
+  game.rightSwitch.y = Math.round(newHeight * 0.28);
   game.westNpc.x = Math.round(newWidth * 0.22);
   game.westNpc.y = Math.round(newHeight / 2 - DRAW_H / 2);
 }

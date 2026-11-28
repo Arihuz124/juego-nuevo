@@ -10,8 +10,11 @@ import {
   ROOMS,
   getMenuButtons,
   getMapLayout,
+  getRoomDoors,
+  getHousePortal,
 } from './constants';
 import { readSavedGame } from './state';
+import { isDoorUnlocked } from './physics';
 
 function drawPixelHeart(ctx, x, y, filled) {
   const pattern = [
@@ -94,7 +97,7 @@ function drawStartMenu(ctx, game) {
 }
 
 function drawMapOverlay(ctx, game) {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
   ctx.fillRect(0, 0, game.width, game.height);
 
   const { rooms: mapRooms, connectors: mapConnectors } = getMapLayout(
@@ -102,13 +105,27 @@ function drawMapOverlay(ctx, game) {
     game.height
   );
 
-  ctx.fillStyle = '#000000';
+  // Si estás dentro de una casa (ej. left_house), ilumina su cuarto exterior (left)
+  const activeMapRoom = ROOMS[game.room]?.mapRoom || game.room;
+
+  // Pasillos entre cuartos (negros si no se han cruzado)
   mapConnectors.forEach((conn) => {
+    const isRevealed = Boolean(game.visitedConnectors?.[conn.id]);
+    ctx.fillStyle = isRevealed ? '#3d3d3d' : '#000000';
     ctx.fillRect(conn.x, conn.y, conn.w, conn.h);
   });
 
+  // Cuartos (niebla de guerra negra si aún no han sido visitados)
   for (const [roomKey, rect] of Object.entries(mapRooms)) {
-    const isCurrent = game.room === roomKey;
+    const isVisited = Boolean(game.visitedRooms?.[roomKey]);
+
+    if (!isVisited) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      continue;
+    }
+
+    const isCurrent = activeMapRoom === roomKey;
     const isHovered = game.hoveredMapRoom === roomKey;
 
     ctx.fillStyle = '#5c0d0d';
@@ -265,6 +282,28 @@ export function drawGame(ctx, game, assets) {
     ctx.fillRect(0, 0, game.width, game.height);
   }
 
+  // 1. Dibujar puertas entre cuartos (abiertas o bloqueadas por condición)
+  const doors = getRoomDoors(game.room, game.width, game.height);
+  for (const door of doors) {
+    const unlocked = isDoorUnlocked(game, door);
+    ctx.fillStyle = unlocked ? '#111111' : '#2d3436';
+    ctx.fillRect(door.x, door.y, door.w, door.h);
+
+    ctx.strokeStyle = unlocked ? '#55efc4' : '#ff4757';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(door.x + 1.5, door.y + 1.5, door.w - 3, door.h - 3);
+  }
+
+  // 2. Dibujar cuadro negro de entrada o salida de casa
+  const housePortal = getHousePortal(game.room, game.width, game.height);
+  if (housePortal) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(housePortal.x, housePortal.y, housePortal.w, housePortal.h);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(housePortal.x, housePortal.y, housePortal.w, housePortal.h);
+  }
+
   if (game.room === 'top') {
     const enemy = game.northEnemy;
 
@@ -300,6 +339,12 @@ export function drawGame(ctx, game, assets) {
     ctx.fillRect(c.x - 2, c.y - 2, c.size + 4, c.size + 4);
     ctx.fillStyle = c.isOpen ? '#2ecc71' : '#8B4513';
     ctx.fillRect(c.x, c.y, c.size, c.size);
+
+    const sw = game.rightSwitch;
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(sw.x - 2, sw.y - 2, sw.size + 4, sw.size + 4);
+    ctx.fillStyle = game.rightSwitchPressed ? '#00b894' : '#d63031';
+    ctx.fillRect(sw.x, sw.y, sw.size, sw.size);
   }
 
   if (game.room === 'left' && assets.cleanSheet) {

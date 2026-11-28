@@ -48,17 +48,28 @@ export function createInitialGameState() {
     menuSelected: 0,
     saveNoticeTimer: 0,
 
-    room: 'center',
+    room: 'left',
     x: spawn.x,
     y: spawn.y,
     playerHp: MAX_PLAYER_HP,
     playerHitFlash: 0,
 
+    visitedRooms: { left: true },
+    visitedConnectors: {},
+    rightSwitchPressed: false,
+    autoWalk: {
+      active: false,
+      dx: 0,
+      dy: 0,
+      frames: 0,
+    },
+
     checkpoint: {
-      room: 'center',
+      room: 'left',
       x: spawn.x,
       y: spawn.y,
       northEnemyHp: MAX_ENEMY_HP,
+      rightSwitchPressed: false,
     },
 
     isMapOpen: false,
@@ -91,6 +102,12 @@ export function createInitialGameState() {
       isOpen: false,
     },
 
+    rightSwitch: {
+      x: Math.round(DEFAULT_WIDTH * 0.52),
+      y: Math.round(DEFAULT_HEIGHT * 0.28),
+      size: 36,
+    },
+
     westNpc: {
       x: Math.round(DEFAULT_WIDTH * 0.22),
       y: Math.round(DEFAULT_HEIGHT / 2 - DRAW_H / 2),
@@ -113,12 +130,26 @@ export function createInitialGameState() {
   };
 }
 
+export function startAutoWalk(game, dx, dy, frames = 16) {
+  game.keys = {};
+  game.isMoving = true;
+  game.autoWalk = {
+    active: true,
+    dx,
+    dy,
+    frames,
+  };
+}
+
 export function saveCheckpointAtSouth(game) {
   const saveData = {
     room: 'bottom',
     x: game.x,
     y: game.y,
     northEnemyHp: game.northEnemy.hp,
+    rightSwitchPressed: game.rightSwitchPressed,
+    visitedRooms: { ...game.visitedRooms },
+    visitedConnectors: { ...game.visitedConnectors },
   };
   writeSavedGame(saveData);
   game.checkpoint = { ...saveData };
@@ -127,13 +158,13 @@ export function saveCheckpointAtSouth(game) {
 
 export function startNewGame(game, setIsPlaying) {
   const spawn = getCenterSpawn(game.width, game.height);
-  game.room = 'center';
+  game.room = 'left';
   game.x = spawn.x;
   game.y = spawn.y;
   game.playerHp = MAX_PLAYER_HP;
   game.playerHitFlash = 0;
-  game.dirKey = '0,1';
-  game.lastCardinal = 'down';
+  game.dirKey = '1,0';
+  game.lastCardinal = 'right';
   game.isAttacking = false;
   game.attackHasHit = false;
   game.attackFrame = 0;
@@ -146,14 +177,19 @@ export function startNewGame(game, setIsPlaying) {
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
   game.eastChest.isOpen = false;
+  game.rightSwitchPressed = false;
+  game.visitedRooms = { left: true };
+  game.visitedConnectors = {};
   game.checkpoint = {
-    room: 'center',
+    room: 'left',
     x: spawn.x,
     y: spawn.y,
     northEnemyHp: MAX_ENEMY_HP,
+    rightSwitchPressed: false,
   };
   game.screen = 'playing';
   setIsPlaying(true);
+  startAutoWalk(game, 1, 0, 14);
 }
 
 export function loadSavedGame(game, setIsPlaying) {
@@ -180,6 +216,10 @@ export function loadSavedGame(game, setIsPlaying) {
     typeof saved.northEnemyHp === 'number' ? saved.northEnemyHp : MAX_ENEMY_HP;
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
+  game.rightSwitchPressed = Boolean(saved.rightSwitchPressed);
+  game.visitedRooms = saved.visitedRooms || { left: true, [saved.room]: true };
+  game.visitedConnectors = saved.visitedConnectors || {};
+  game.autoWalk = { active: false, dx: 0, dy: 0, frames: 0 };
   game.checkpoint = { ...saved };
   game.screen = 'playing';
   setIsPlaying(true);
@@ -206,18 +246,24 @@ export function respawnAtLastCheckpoint(game) {
     typeof cp.northEnemyHp === 'number' ? cp.northEnemyHp : MAX_ENEMY_HP;
   game.northEnemy.hitFlash = 0;
   game.northEnemy.shootTimer = 0;
+  game.rightSwitchPressed = Boolean(cp.rightSwitchPressed);
+  game.autoWalk = { active: false, dx: 0, dy: 0, frames: 0 };
 }
 
 export function teleportToRoom(game, targetRoom) {
   const spawn = getCenterSpawn(game.width, game.height);
   game.room = targetRoom;
+  game.visitedRooms[targetRoom] = true;
   game.x = spawn.x;
-  game.y = spawn.y;
+  game.y = spawn.y - 24;
   game.bullets = [];
   game.isAttacking = false;
   game.attackFrame = 0;
   game.isMapOpen = false;
   game.hoveredMapRoom = null;
+
+  // Al teletransportarse desde el mapa, da unos pasos hacia abajo automáticamente
+  startAutoWalk(game, 0, 1, 14);
 
   if (targetRoom === 'bottom') {
     saveCheckpointAtSouth(game);
@@ -234,6 +280,8 @@ export function resizeGameScreen(game, newWidth, newHeight) {
   game.northEnemy.x = Math.round(newWidth / 2 - DRAW_SIZE / 2);
   game.eastChest.x = Math.round(newWidth * 0.68);
   game.eastChest.y = Math.round(newHeight / 2 - 24);
+  game.rightSwitch.x = Math.round(newWidth * 0.52);
+  game.rightSwitch.y = Math.round(newHeight * 0.28);
   game.westNpc.x = Math.round(newWidth * 0.22);
   game.westNpc.y = Math.round(newHeight / 2 - DRAW_H / 2);
 }

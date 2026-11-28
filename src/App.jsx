@@ -226,7 +226,7 @@ export default function App() {
       const { rooms: mapRooms } = getMapLayout(game.width, game.height);
       let found = null;
       for (const [roomKey, rect] of Object.entries(mapRooms)) {
-        if (pointInRect(mx, my, rect)) {
+        if (game.visitedRooms?.[roomKey] && pointInRect(mx, my, rect)) {
           found = roomKey;
           break;
         }
@@ -259,7 +259,7 @@ export default function App() {
       if (game.isMapOpen) {
         const { rooms: mapRooms } = getMapLayout(game.width, game.height);
         for (const [roomKey, rect] of Object.entries(mapRooms)) {
-          if (pointInRect(mx, my, rect)) {
+          if (game.visitedRooms?.[roomKey] && pointInRect(mx, my, rect)) {
             teleportToRoom(game, roomKey);
             return;
           }

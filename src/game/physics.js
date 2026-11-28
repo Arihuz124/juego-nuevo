@@ -48,6 +48,21 @@ export function getNpcBox(game) {
     h: game.westNpc.h - 22,
   };
 }
+export function getSwitchBox(game) {
+  return {
+    x: game.rightSwitch.x,
+    y: game.rightSwitch.y,
+    w: game.rightSwitch.size,
+    h: game.rightSwitch.size,
+  };
+}
+
+export function isDoorUnlocked(game, door) {
+  if (door.requiresSwitch && !game.rightSwitchPressed) {
+    return false;
+  }
+  return true;
+}
 
 export function isNear(a, b, margin = 36) {
   return rectsOverlap(a, {
